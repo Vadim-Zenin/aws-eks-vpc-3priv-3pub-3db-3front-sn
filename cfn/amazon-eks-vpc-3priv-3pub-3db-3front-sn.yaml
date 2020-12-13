@@ -1,0 +1,1229 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon VPC for EKS. 3 Available Zones. 1 private, 1 public, 1 db and 1 front subnets per Available Zone.'
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Environment Configuration"
+        Parameters:
+          - ENV_TYPE
+          - EnvironmentName
+          - EksName
+          - VpcCidr
+          - SubnetPublicAcidr
+          - SubnetPublicBcidr
+          - SubnetPublicCcidr
+          - SubnetFrontAcidr
+          - SubnetFrontBcidr
+          - SubnetFrontCcidr
+          - SubnetDbAcidr
+          - SubnetDbBcidr
+          - SubnetDbCcidr
+          - SubnetPrivateAcidr
+          - SubnetPrivateBcidr
+          - SubnetPrivateCcidr
+          - SsmBasePath
+
+Parameters:
+
+  EnvironmentType:
+    Type: String
+    Default: qa
+    Description: EnvironmentType (test, dev, qa, stg, uat, prod).
+    AllowedPattern: '^[a-z]+$'
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  EksName:
+    Type: String
+    Description: The cluster name provided when the cluster was created. If it is incorrect, nodes will not be able to join the cluster.
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+
+  Subnet2octet:
+    Type: Number
+    Default: 144
+    Description: VPC IP range block second octet.
+
+  VpcCidr:
+    Type: String
+    Default: 10.144.0.0/16
+    Description: The CIDR range for the VPC. This should be a valid private (RFC 1918) CIDR range.
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicAcidr:
+    Type: String
+    Default: 10.144.0.0/20
+    Description: CidrBlock for subnet Public A within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicBcidr:
+    Type: String
+    Default: 10.144.16.0/20
+    Description: CidrBlock for subnet Public B within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPublicCcidr:
+    Type: String
+    Default: 10.144.32.0/20
+    Description: CidrBlock for subnet Public C within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetFrontAcidr:
+    Type: String
+    Default: 10.144.64.0/22
+    Description: CidrBlock for subnet Front A within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetFrontBcidr:
+    Type: String
+    Default: 10.144.68.0/22
+    Description: CidrBlock for subnet Front B within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetFrontCcidr:
+    Type: String
+    Default: 10.144.72.0/22
+    Description: CidrBlock for subnet Front C within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetDbAcidr:
+    Type: String
+    Default: 10.144.96.0/18
+    Description: CidrBlock for subnet Db A within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetDbBcidr:
+    Type: String
+    Default: 10.144.100.0/18
+    Description: CidrBlock for subnet Db B within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetDbCcidr:
+    Type: String
+    Default: 10.144.104.0/22
+    Description: CidrBlock for subnet Db C within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPrivateAcidr:
+    Type: String
+    Default: 10.144.128.0/19
+    Description: CidrBlock for subnet Private A within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPrivateBcidr:
+    Type: String
+    Default: 10.144.160.0/19
+    Description: CidrBlock for subnet Private B within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SubnetPrivateCcidr:
+    Type: String
+    Default: 10.144.192.0/19
+    Description: CidrBlock for subnet Private C within the VPC
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+  SsmBasePath:
+    Description: AWS Parameter Store Key base path (name).
+    Type: String
+    AllowedPattern: '^[/][-_/a-z0-9]*$'
+    ConstraintDescription: must begin with / and contain only lower case alphanumeric -_ characters.
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:  !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-igw'
+
+  VPCGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  NatGatewayElasticIpA:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: vpc
+
+  NatGatewayA:
+    Type: "AWS::EC2::NatGateway"
+    Properties: 
+      AllocationId: !GetAtt NatGatewayElasticIpA.AllocationId
+      SubnetId: !Ref SubnetPublicA
+      Tags: 
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-NatGateway-A'
+
+  NatGatewayElasticIpB:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: vpc
+
+  NatGatewayB:
+    Type: "AWS::EC2::NatGateway"
+    Properties: 
+      AllocationId: !GetAtt NatGatewayElasticIpB.AllocationId
+      SubnetId: !Ref SubnetPublicB
+      Tags: 
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-NatGateway-B'
+
+  NatGatewayElasticIpC:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: vpc
+
+  NatGatewayC:
+    Type: "AWS::EC2::NatGateway"
+    Properties: 
+      AllocationId: !GetAtt NatGatewayElasticIpC.AllocationId
+      SubnetId: !Ref SubnetPublicC
+      Tags: 
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-NatGateway-C'
+
+  PrivateRouteAtable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-PrivateRoute-A'
+      - Key: Network
+        Value: Private
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  PrivateRouteBtable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-PrivateRoute-B'
+      - Key: Network
+        Value: Private
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  PrivateRouteCtable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-PrivateRoute-C'
+      - Key: Network
+        Value: Private
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-PublicRoute'
+      - Key: Network
+        Value: Public
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  PublicRoute:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PrivateRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteAtable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+
+  PrivateRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteBtable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+
+  PrivateRouteC:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteCtable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayC
+
+  SubnetPublicA:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicAcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicA"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${EksName}"
+        Value: 'shared'
+      - Key: kubernetes.io/role/elb
+        Value: '1'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetPublicB:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicBcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicB"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${EksName}"
+        Value: 'shared'
+      - Key: kubernetes.io/role/elb
+        Value: '1'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetPublicC:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public C
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '2'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPublicCcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPublicC"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${EksName}"
+        Value: 'shared'
+      - Key: kubernetes.io/role/elb
+        Value: '1'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetFrontA:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Front A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetFrontAcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetFrontA"
+      - Key: Tier
+        Value: 'Front'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetFrontB:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Front B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetFrontBcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetFrontB"
+      - Key: Tier
+        Value: 'Front'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetFrontC:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Front C
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '2'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetFrontCcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetFrontC"
+      - Key: Tier
+        Value: 'Front'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetDbA:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Db A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetDbAcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetDbA"
+      - Key: Tier
+        Value: 'Db'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetDbB:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Db B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetDbBcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetDbB"
+      - Key: Tier
+        Value: 'Db'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetDbC:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Db C
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '2'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetDbCcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetDbC"
+      - Key: Tier
+        Value: 'Db'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetPrivateA:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Public A
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPrivateAcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPrivateA"
+      - Key: Tier
+        Value: 'Public'
+      - Key: !Sub "kubernetes.io/cluster/${EksName}"
+        Value: 'shared'
+      - Key: kubernetes.io/role/internal-elb
+        Value: '1'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetPrivateB:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Private B
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPrivateBcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPrivateB"
+      - Key: Tier
+        Value: 'Private'
+      - Key: !Sub "kubernetes.io/cluster/${EksName}"
+        Value: 'shared'
+      - Key: kubernetes.io/role/internal-elb
+        Value: '1'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetPrivateC:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet Private C
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '2'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: SubnetPrivateCcidr
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-SubnetPrivateC"
+      - Key: Tier
+        Value: 'Private'
+      - Key: !Sub "kubernetes.io/cluster/${EksName}"
+        Value: 'shared'
+      - Key: kubernetes.io/role/internal-elb
+        Value: '1'
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  SubnetPublicARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicA
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicB
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetPublicCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicC
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetFrontARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetFrontA
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetFrontBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetFrontB
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetFrontCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetFrontC
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetDbARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetDbA
+      RouteTableId: !Ref PrivateRouteAtable
+
+  SubnetDbBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetDbB
+      RouteTableId: !Ref PrivateRouteBtable
+
+  SubnetDbCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetDbC
+      RouteTableId: !Ref PrivateRouteCtable
+
+  SubnetPrivateARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateA
+      RouteTableId: !Ref PrivateRouteAtable
+
+  SubnetPrivateBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateB
+      RouteTableId: !Ref PrivateRouteBtable
+
+  SubnetPrivateCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateC
+      RouteTableId: !Ref PrivateRouteCtable
+
+
+  # === Saving to AWS Parameter Store
+
+  EnvironmentNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/env/name"
+      Type: String
+      Value: !Ref EnvironmentName
+      Description: !Sub "EnvironmentName: ${EnvironmentName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  VpcIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/id"
+      Type: String
+      Value: !Ref VPC
+      Description: !Sub "${EnvironmentName} VPC id"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  VpcCidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/cidr"
+      Type: String
+      Value: !Ref VpcCidr
+      Description: !Sub "${EnvironmentName} VPC cidr"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  NatGatewayElasticIpAParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/nat-gateway/elastic-ip/a"
+      Type: String
+      Value: !Ref NatGatewayElasticIpA
+      Description: !Sub "NatGatewayElasticIpA in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  NatGatewayElasticIpBParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/nat-gateway/elastic-ip/b"
+      Type: String
+      Value: !Ref NatGatewayElasticIpB
+      Description: !Sub "NatGatewayElasticIpB in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  NatGatewayElasticIpCParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/nat-gateway/elastic-ip/c"
+      Type: String
+      Value: !Ref NatGatewayElasticIpC
+      Description: !Sub "NatGatewayElasticIpC in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  AllSubnetIdsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/all/ids"
+      Type: String
+      Value: !Join [ ",", [ !Ref SubnetPublicA, !Ref SubnetPublicB, !Ref SubnetPublicC, !Ref SubnetFrontA, !Ref SubnetFrontB, !Ref SubnetFrontC, !Ref SubnetDbA, !Ref SubnetDbB, !Ref SubnetDbC, !Ref SubnetPrivateA, !Ref SubnetPrivateB, !Ref SubnetPrivateC ] ]
+      Description: !Sub "All subnets in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  PublicSubnetIdsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/public/ids"
+      Type: String
+      Value: !Join [ ",", [ !Ref SubnetPublicA, !Ref SubnetPublicB, !Ref SubnetPublicC ] ]
+      Description: !Sub "Public subnets in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  FrontSubnetIdsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/frond/ids"
+      Type: String
+      Value: !Join [ ",", [ !Ref SubnetFrontA, !Ref SubnetFrontB, !Ref SubnetFrontC ] ]
+      Description: !Sub "Front subnets in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  PrivateSubnetIdsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/private/ids"
+      Type: String
+      Value: !Join [ ",", [ !Ref SubnetPrivateA, !Ref SubnetPrivateB, !Ref SubnetPrivateC ] ]
+      Description: !Sub "Private subnets in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  K8sSubnetIdsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/k8s/ids"
+      Type: String
+      Value: !Join [ ",", [ !Ref SubnetPublicA, !Ref SubnetPublicB, !Ref SubnetPublicC, !Ref SubnetPrivateA, !Ref SubnetPrivateB, !Ref SubnetPrivateC ] ]
+      Description: !Sub "EKS (Kubernetes) subnets in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+
+  SubnetPublicAidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/public/a/id"
+      Type: String
+      Value: !Ref SubnetPublicA
+      Description: !Sub "Public subnets A id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPublicAcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/public/a/cidr"
+      Type: String
+      Value: !Ref SubnetPublicAcidr
+      Description: !Sub "Public subnets A cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPublicBidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/public/b/id"
+      Type: String
+      Value: !Ref SubnetPublicB
+      Description: !Sub "Public subnets B id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPublicBcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/public/b/cidr"
+      Type: String
+      Value: !Ref SubnetPublicBcidr
+      Description: !Sub "Public subnets B cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPublicCidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/public/c/id"
+      Type: String
+      Value: !Ref SubnetPublicC
+      Description: !Sub "Public subnets C id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPublicCcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/public/c/cidr"
+      Type: String
+      Value: !Ref SubnetPublicCcidr
+      Description: !Sub "Public subnets C cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+
+  SubnetFrontAidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/front/a/id"
+      Type: String
+      Value: !Ref SubnetFrontA
+      Description: !Sub "Front subnets A id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetFrontAcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/front/a/cidr"
+      Type: String
+      Value: !Ref SubnetFrontAcidr
+      Description: !Sub "Front subnets A cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetFrontBidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/front/b/id"
+      Type: String
+      Value: !Ref SubnetFrontB
+      Description: !Sub "Front subnets B id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetFrontBcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/front/b/cidr"
+      Type: String
+      Value: !Ref SubnetFrontBcidr
+      Description: !Sub "Front subnets B cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetFrontCidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/front/c/id"
+      Type: String
+      Value: !Ref SubnetFrontC
+      Description: !Sub "Front subnets C id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetFrontCcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/front/c/cidr"
+      Type: String
+      Value: !Ref SubnetFrontCcidr
+      Description: !Sub "Front subnets C cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+
+  SubnetDbAidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/db/a/id"
+      Type: String
+      Value: !Ref SubnetDbA
+      Description: !Sub "DB subnets A id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetDbAcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/db/a/cidr"
+      Type: String
+      Value: !Ref SubnetDbAcidr
+      Description: !Sub "DB subnets A cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetDbBidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/db/b/id"
+      Type: String
+      Value: !Ref SubnetDbB
+      Description: !Sub "DB subnets B id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetDbBcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/db/b/cidr"
+      Type: String
+      Value: !Ref SubnetDbBcidr
+      Description: !Sub "DB subnets B cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetDbCidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/db/c/id"
+      Type: String
+      Value: !Ref SubnetDbC
+      Description: !Sub "DB subnets C id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetDbCcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/db/c/cidr"
+      Type: String
+      Value: !Ref SubnetDbCcidr
+      Description: !Sub "DB subnets C cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+
+  SubnetPrivateAidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/private/a/id"
+      Type: String
+      Value: !Ref SubnetPrivateA
+      Description: !Sub "Private subnets A id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPrivateAcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/private/a/cidr"
+      Type: String
+      Value: !Ref SubnetPrivateAcidr
+      Description: !Sub "Private subnets A cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPrivateBidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/private/b/id"
+      Type: String
+      Value: !Ref SubnetPrivateB
+      Description: !Sub "Private subnets B id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPrivateBcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/private/b/cidr"
+      Type: String
+      Value: !Ref SubnetPrivateBcidr
+      Description: !Sub "Private subnets B cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPrivateCidParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/private/c/id"
+      Type: String
+      Value: !Ref SubnetPrivateC
+      Description: !Sub "Private subnets C id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SubnetPrivateCcidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/subnets/private/c/cidr"
+      Type: String
+      Value: !Ref SubnetPrivateCcidr
+      Description: !Sub "Private subnets C cidr in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  PublicRouteTableIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/route/public/table/id"
+      Type: String
+      Value: !Ref PublicRouteTable
+      Description: !Sub "Public Route table id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  PrivateRouteAtableIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/route/private/table/a/id"
+      Type: String
+      Value: !Ref PrivateRouteAtable
+      Description: !Sub "Private Route A table id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  PrivateRouteBtableIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/route/private/table/b/id"
+      Type: String
+      Value: !Ref PrivateRouteBtable
+      Description: !Sub "Private RouteB table id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  PrivateRouteCtableIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/vpc/route/private/table/c/id"
+      Type: String
+      Value: !Ref PrivateRouteCtable
+      Description: !Sub "Private RouteC table id in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+
+Outputs:
+
+  EnvironmentName:
+    Description: The VPC Id
+    Value: !Ref EnvironmentName
+    Export:
+      Name: !Sub "${AWS::StackName}-EnvironmentName"
+
+  VpcId:
+    Description: The VPC Id
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcId"
+
+  VpcCidr:
+    Description: The VPC CIDR
+    Value: !Ref VpcCidr
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcCidr"
+
+  K8sSubnetIds:
+    Description: Kubernetes subnets in the VPC
+    Value: !Join [ ",", [ !Ref SubnetPublicA, !Ref SubnetPublicB, !Ref SubnetPublicC, !Ref SubnetPrivateA, !Ref SubnetPrivateB, !Ref SubnetPrivateC ] ]
+    Export:
+      Name: !Sub "${AWS::StackName}-K8sSubnetIds"
+
+  AllSubnetIds:
+    Description: All subnets in the VPC
+    Value: !Join [ ",", [ !Ref SubnetPublicA, !Ref SubnetPublicB, !Ref SubnetPublicC, !Ref SubnetFrontA, !Ref SubnetFrontB, !Ref SubnetFrontC, !Ref SubnetDbA, !Ref SubnetDbB, !Ref SubnetDbC, !Ref SubnetPrivateA, !Ref SubnetPrivateB, !Ref SubnetPrivateC ] ]
+
+  PublicSubnetIds:
+    Description: Public Subnets in the VPC
+    Value: !Join [ ",", [ !Ref SubnetPublicA, !Ref SubnetPublicB, !Ref SubnetPublicC ] ]
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnetIds"
+
+  FrontSubnetIds:
+    Description: Public Subnets in the VPC
+    Value: !Join [ ",", [ !Ref SubnetFrontA, !Ref SubnetFrontB, !Ref SubnetFrontC ] ]
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontSubnetIds"
+
+  PrivateSubnetIds:
+    Description: Private Subnets in the VPC. EKS worker nodes run in private subnets.
+    Value: !Join [ ",", [ !Ref SubnetPrivateA, !Ref SubnetPrivateB, !Ref SubnetPrivateC ] ]
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnetIds"
+
+  SubnetPublicA:
+    Description: SubnetPublicA in the VPC
+    Value: !Ref SubnetPublicA
+
+  SubnetPublicB:
+    Description: SubnetPublicB in the VPC
+    Value: !Ref SubnetPublicB
+
+  SubnetPublicC:
+    Description: SubnetPublicC in the VPC
+    Value: !Ref SubnetPublicC
+
+  SubnetFrontA:
+    Description: SubnetFrontA in the VPC
+    Value: !Ref SubnetFrontA
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetFrontA"
+
+  SubnetFrontB:
+    Description: SubnetFrontB in the VPC
+    Value: !Ref SubnetFrontB
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetFrontB"
+
+  SubnetFrontC:
+    Description: SubnetFrontC in the VPC
+    Value: !Ref SubnetFrontC
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetFrontC"
+
+  SubnetDbA:
+    Description: SubnetDbA in the VPC
+    Value: !Ref SubnetDbA
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetDbA"
+
+  SubnetDbB:
+    Description: SubnetDbB in the VPC
+    Value: !Ref SubnetDbB
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetDbB"
+
+  SubnetDbC:
+    Description: SubnetDbC in the VPC
+    Value: !Ref SubnetDbC
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetDbC"
+
+  SubnetPrivateA:
+    Description: SubnetPrivateA in the VPC
+    Value: !Ref SubnetPrivateA
+
+  SubnetPrivateB:
+    Description: SubnetPrivateB in the VPC
+    Value: !Ref SubnetPrivateB
+
+  SubnetPrivateC:
+    Description: SubnetPrivateC in the VPC
+    Value: !Ref SubnetPrivateC
+
+  NatGatewayElasticIpA:
+    Description: NatGatewayElasticIpA in the VPC
+    Value: !Ref NatGatewayElasticIpA
+    Export:
+      Name: !Sub "${AWS::StackName}-NatGatewayElasticIpA"
+
+  NatGatewayElasticIpB:
+    Description: NatGatewayElasticIpB in the VPC
+    Value: !Ref NatGatewayElasticIpB
+    Export:
+      Name: !Sub "${AWS::StackName}-NatGatewayElasticIpB"
+
+  NatGatewayElasticIpC:
+    Description: NatGatewayElasticIpC in the VPC
+    Value: !Ref NatGatewayElasticIpC
+    Export:
+      Name: !Sub "${AWS::StackName}-NatGatewayElasticIpC"
+
+  PublicRouteTableId:
+    Description: PublicRouteTableId in the VPC
+    Value: !Ref PublicRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicRouteTableId"
+
+  PrivateRouteAtableId:
+    Description: PrivateRouteAtableId in the VPC
+    Value: !Ref PrivateRouteAtable
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateRouteAtableId"
+
+  PrivateRouteBtableId:
+    Description: PrivateRouteBtableId in the VPC
+    Value: !Ref PrivateRouteBtable
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateRouteBtableId"
+
+  PrivateRouteCtableId:
+    Description: PrivateRouteCtableId in the VPC
+    Value: !Ref PrivateRouteCtable
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateRouteCtableId"

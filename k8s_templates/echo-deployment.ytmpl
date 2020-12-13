@@ -1,0 +1,77 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ${APP_ENVIRONMENT}-${NSPACE}-${APP_NAME}
+  namespace: ${NSPACE}
+spec:
+  replicas: ${MY_REPLICAS}
+  selector:
+    matchLabels:
+      app: ${APP_ENVIRONMENT}-${NSPACE}-${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${APP_ENVIRONMENT}-${NSPACE}-${APP_NAME}
+    spec:
+      containers:
+      - name: ${APP_NAME}
+        image: inanimate/echo-server
+        imagePullPolicy: IfNotPresent
+        command: ["/http-echo", "-listen=:${MY_CONTAINER_PORT}", "-text=Welcome to ${APP_ENVIRONMENT}-${NSPACE}-${APP_NAME} on port ${MY_CONTAINER_PORT} $(date +%Y%m%d-%H%M%S)"]
+        env:
+        - name: PORT
+          value: "${MY_CONTAINER_PORT}"
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        ports:
+        - containerPort: ${MY_CONTAINER_PORT}
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: ${MY_CONTAINER_PORT}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 2
+        livenessProbe:
+          httpGet:
+            path: /
+            port: ${MY_CONTAINER_PORT}
+          initialDelaySeconds: 120
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 2
+      # affinity:
+      #   podAntiAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #     - labelSelector:
+      #         matchExpressions:
+      #         - key: app
+      #           operator: In
+      #           values:
+      #           - ${APP_ENVIRONMENT}-${NSPACE}-${APP_NAME}
+      #       topologyKey: "kubernetes.io/hostname"
+      nodeSelector:
+        nodesgroup: ${NSPACE}
+---

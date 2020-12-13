@@ -1,0 +1,312 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon Security Groups - Released 2020-12-12.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+          - TrustedIpCidr
+
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  TrustedIpCidr:
+    Type: String
+    Description: The Admin IP CIDR. This should be a valid private (RFC 1918) CIDR range.
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+Resources:
+
+  ControlPlaneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Cluster communication with worker nodes
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-vpc-VpcId"
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-ControlPlane"
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  ControlPlaneSecurityGroupNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/controlplane/name'
+      Type: String
+      Value: !Sub "${AWS::StackName}-ControlPlane"
+      Description: !Sub "EKS ControlPlaneSecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  ControlPlaneSecurityGroupIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/controlplane/id'
+      Type: String
+      Value: !Ref ControlPlaneSecurityGroup
+      Description: !Sub "EKS ControlPlaneSecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  AdminAccessSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-vpc-VpcId"
+      GroupDescription: >-
+        Admins access
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-AdminAccess"
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        CidrIp: !Ref TrustedIpCidr
+        Description: 'Admin IP'
+
+  AdminAccessSecurityGroupNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/adminaccess/name'
+      Type: String
+      Value: !Sub "${AWS::StackName}-AdminAccess"
+      Description: !Sub "EKS AdminAccessSecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  AdminAccessSecurityGroupIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/adminaccess/id'
+      Type: String
+      Value: !Ref AdminAccessSecurityGroup
+      Description: !Sub "EKS AdminAccessSecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+
+  Route53HealthCheckersSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-vpc-VpcId"
+      GroupDescription: >-
+        Enable traffic from IP address ranges of Amazon Route53 health checkers
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-route53-health-checkers"
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 15.177.42.16/28
+        Description: Asia Pacific (Tokyo)
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 15.177.46.16/28
+        Description: Asia Pacific (Tokyo)
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 15.177.38.16/28
+        Description: EU (Ireland)
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 15.177.34.16/28
+        Description: EU (Ireland)
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 15.177.6.16/28
+        Description: US East (N. Virginia)
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 15.177.2.16/28
+        Description: US East (N. Virginia)
+
+  Route53HealthCheckersNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/route53-health-checkers/name'
+      Type: String
+      Value: !Sub "${AWS::StackName}-route53-health-checkers"
+      Description: !Sub "Route53 Health Checkers"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  Route53HealthCheckersIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/route53-health-checkers/id'
+      Type: String
+      Value: !Ref Route53HealthCheckersSecurityGroup
+      Description: !Sub "Route53 Health Checkers"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  OfficesAccessSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-vpc-VpcId"
+      GroupDescription: >-
+        Enable access from offices
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-OfficesAccess"
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: !Ref TrustedIpCidr
+        Description: 'secure-access-office'
+      # Allow All Outbound
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+
+  OfficesAccessSecurityGroupNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/officeaccess/name'
+      Type: String
+      Value: !Sub "${AWS::StackName}-OfficesAccess"
+      Description: !Sub "EKS OfficesAccessSecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  OfficesAccessSecurityGroupIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/officeaccess/id'
+      Type: String
+      Value: !Ref OfficesAccessSecurityGroup
+      Description: !Sub "OfficesAccessSecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  ExtPerformanceTestsSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-vpc-VpcId"
+      GroupDescription: >-
+        Enable access from offices
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-ext-performance-tests"
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+
+  ExtPerformanceTestsSecurityGroupNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/extperformancetests/name'
+      Type: String
+      Value: !Sub "${AWS::StackName}-ExtPerformanceTests"
+      Description: !Sub "EKS OfficesAccessSecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  ExtPerformanceTestsSecurityGroupIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/extperformancetests/id'
+      Type: String
+      Value: !Ref ExtPerformanceTestsSecurityGroup
+      Description: !Sub "ExtPerformanceTestsSecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+
+Outputs:
+
+  ControlPlaneSecurityGroup:
+    Description: Security group for the cluster control plane communication with worker nodes
+    Value: !Ref ControlPlaneSecurityGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-ControlPlaneSecurityGroup"
+
+  AdminAccessSecurityGroup:
+    Description: Enable access for administrators
+    Value: !Ref AdminAccessSecurityGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-AdminAccessSecurityGroup"
+
+  OfficesAccessSecurityGroup:
+    Description: Enable access from offices
+    Value: !Ref OfficesAccessSecurityGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-OfficesAccessSecurityGroup"
+
+  ExtPerformanceTestsSecurityGroup:
+    Description: Enable access from offices
+    Value: !Ref ExtPerformanceTestsSecurityGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-ExtPerformanceTestsSecurityGroup"
+
+  Route53HealthCheckersSecurityGroup:
+    Description: Enable traffic from IP address ranges of Amazon Route53 health checkers
+    Value: !Ref Route53HealthCheckersSecurityGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-Route53HealthCheckersSecurityGroup"

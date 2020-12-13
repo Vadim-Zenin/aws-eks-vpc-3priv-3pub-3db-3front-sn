@@ -1,0 +1,286 @@
+#!/usr/bin/env groovy
+
+properties([
+	parameters([
+		[
+			$class: 'ChoiceParameter',
+			choiceType: 'PT_SINGLE_SELECT',
+			description: 'Select Development Environment Type',
+			filterable: false,
+			name: 'ENV_TYPE',
+			script: [
+				$class: 'GroovyScript',
+				fallbackScript: [
+					classpath: [], sandbox: true, script: 'return ["script exception"]'
+				],
+				script: [
+					classpath: [], sandbox: true,
+					script: '''return ["test"]'''
+				]
+			]
+		],
+		[
+			$class: 'CascadeChoiceParameter',
+			choiceType: 'PT_SINGLE_SELECT',
+			description: 'Select Subnet IP 2nd Octet',
+			name: 'IP_2ND_OCTET',
+			referencedParameters: 'ENV_TYPE',
+			script:  [
+				$class: 'GroovyScript',
+				fallbackScript: [
+					classpath: [], sandbox: false, script: 'return ["script exception"]'
+				],
+				script: [
+					classpath: [], sandbox: false,
+					script: '''
+					if (ENV_TYPE.equals("test")) {
+						return ["16"]
+					} else {
+						return ["unknown"]
+					}'''
+				]
+			]
+		],
+		[
+			$class: 'CascadeChoiceParameter',
+			choiceType: 'PT_SINGLE_SELECT',
+			description: 'Select Number Space',
+			name: 'NSPACE',
+			referencedParameters: 'IP_2ND_OCTET',
+			script:  [
+				$class: 'GroovyScript',
+				fallbackScript: [
+					classpath: [], sandbox: false, script: 'return ["script exception"]'
+				],
+				script: [
+					classpath: [], sandbox: false,
+					script: '''
+					if (IP_2ND_OCTET.equals("16")) {
+						return ["nspace60"]
+					} else {
+						return ["unknown"]
+					}'''
+				]
+			]
+		],
+		[
+			$class: 'CascadeChoiceParameter',
+			choiceType: 'PT_SINGLE_SELECT',
+			description: 'Select Application',
+			filterable: true,
+			filterLength: 1,
+			name: 'APP_NAME',
+			referencedParameters: 'NSPACE',
+			script: [
+				$class: 'GroovyScript',
+				fallbackScript: [
+					classpath: [], sandbox: true, script: 'return ["script exception"]'
+				],
+				script: [
+					classpath: [], sandbox: true,
+					script: '''
+					if (NSPACE.equals("nspace60")) {
+						return ["", "app-http-content-from-git", "echo", "alb1-public", "test"]
+					} else {
+						return ["unknown"]
+					}'''
+				]
+			]
+		],
+		[
+			$class: 'CascadeChoiceParameter',
+			choiceType: 'PT_SINGLE_SELECT',
+			description: 'Select Artifact Source (Nexus Repo or ECR Registry)',
+			name: 'ARTIFACT_SOURCE',
+			referencedParameters: 'ENV_TYPE, APP_NAME',
+			script: [
+				$class: 'GroovyScript',
+				fallbackScript: [
+					classpath: [], sandbox: true, script: 'return ["script exception"]'
+				],
+				script: [
+					classpath: [], sandbox: true,
+					script: '''
+						if (APP_NAME != "" && !APP_NAME.contains("alb")) {
+							if (ENV_TYPE.equals("test")) {
+								return ["355094298491"]
+							} else {
+								return [""]
+							}
+						} else {
+							return [""]
+						}
+					'''
+				]
+			]
+		],
+		[
+			$class: 'CascadeChoiceParameter',
+			choiceType: 'PT_SINGLE_SELECT',
+			description: 'Select Artifact Version',
+			filterable: true,
+			name: 'APP_VERSION',
+			referencedParameters: 'APP_NAME, ARTIFACT_SOURCE, ENV_TYPE',
+			script: [
+				$class: 'GroovyScript',
+				fallbackScript: [
+					classpath: [], sandbox: true, script: 'return ["script exception"]'
+				],
+				script: [
+					classpath: [], sandbox: true,
+					script: '''
+						import groovy.json.JsonSlurper
+						if (APP_NAME != "" && !APP_NAME.equals("test") && !APP_NAME.contains("alb")) {
+							def ECR_URL = "${ARTIFACT_SOURCE}.dkr.ecr.eu-west-1.amazonaws.com/${APP_NAME}"
+							def cmd = ['sh', '-c', "aws ecr get-login-password --region eu-west-1 --profile vsm-${ENV_TYPE} | docker login --username AWS --password-stdin ${ECR_URL}"]
+							def login_response = cmd.execute().text
+							if (login_response.contains("Login Succeeded")) {
+								def QUERY = "imageIds[?imageTag!='latest'].{imageTag:imageTag}"
+								cmd = ['sh', '-c', "aws ecr list-images --registry-id ${ARTIFACT_SOURCE} --repository-name ${APP_NAME} --region eu-west-1 --profile vsm-${ENV_TYPE} --query ${QUERY} --output json"]
+								def response = cmd.execute().text
+								def slurper = new JsonSlurper()
+								def json = slurper.parseText(response)
+								if (json == null || json.size == 0) {
+									return ["Error: " + json.toString()]
+								}
+								def artifacts = new ArrayList()
+								json.each { it ->
+									if (it.imageTag != "latest") {
+										artifacts.add(it.imageTag)
+									}
+								}
+								return artifacts.sort().reverse()
+							} else {
+								return ["ECR login failed: " + login_response]
+							}
+						} else {
+							return [""]
+						}
+					'''
+				]
+			]
+		],
+		[
+			$class: 'CascadeChoiceParameter',
+			choiceType: 'PT_SINGLE_SELECT',
+			description: 'Deploy the Application with Dependencies',
+			name: 'APP_W_DEPENDENCIES',
+			referencedParameters: 'APP_NAME',
+			script:  [
+				$class: 'GroovyScript',
+				fallbackScript: [
+					classpath: [], sandbox: true, script: 'return ["script exception"]'
+				],
+				script: [
+					classpath: [], sandbox: true,
+					script: '''
+					if (APP_NAME.equals("test") || APP_NAME.contains("alb")) {
+						return ["false"]
+					} else {
+						return ["false", "true"]
+					}'''
+				]
+			]
+		]
+	])
+])
+
+def ENV_TYPE_FROM_URL = env.BUILD_URL.replaceAll(/(.*deploy-)/, '').replaceAll(/(-environment.*)/, '').trim()
+def ENV_TYPE = env.ENV_TYPE
+def IP_2ND_OCTET = env.IP_2ND_OCTET
+def NSPACE = env.NSPACE
+def APP_NAME = env.APP_NAME
+def ARTIFACT_SOURCE = env.ARTIFACT_SOURCE
+def APP_VERSION = env.APP_VERSION
+def APP_W_DEPENDENCIES = env.APP_W_DEPENDENCIES
+def AWS_DEFAULT_REGION = "eu-west-1"
+def AWS_SSM_REGION = "eu-west-1"
+def CI_CD_DEPLOY = "true"
+def LIQUIBASE_CHANGELOGS_DIR = "/opt/liquibase/${APP_NAME}"
+pipeline {
+	agent {
+		ecs {
+			inheritFrom 'jenkins-agent-custom'
+		}
+	}
+	environment {
+		ENV_TYPE = "${ENV_TYPE}"
+		NSPACE = "${NSPACE}"
+		APP_NAME = "${APP_NAME}"
+		ARTIFACT_SOURCE = "${ARTIFACT_SOURCE}"
+		APP_VERSION = "${APP_VERSION}"
+		AWS_DEFAULT_REGION = "${AWS_DEFAULT_REGION}"
+		AWS_SSM_REGION = "${AWS_SSM_REGION}"
+		CI_CD_DEPLOY = "${CI_CD_DEPLOY}"
+		LIQUIBASE_CHANGELOGS_DIR = "${LIQUIBASE_CHANGELOGS_DIR}"
+	}
+	options {
+		gitLabConnection('gitlab')
+		gitlabBuilds(builds: ['Check Parameters', 'Checkout Code', 'Deploy Application'])
+		disableConcurrentBuilds()
+		// ansiColor('xterm')
+		timeout(time: 30, unit: 'MINUTES')
+		buildDiscarder(logRotator(numToKeepStr: '15', artifactNumToKeepStr: '15'))
+	}
+	stages {
+		stage("Check Parameters") {
+			steps {
+				gitlabCommitStatus(name: 'Check Parameters') {
+					script {
+						echo "INFO: Jenkins Agent instance private IP address"
+						sh "curl -s http://169.254.169.254/latest/meta-data/local-ipv4"
+						sh "free -mh"
+						sh "grep 'cpu cores' /proc/cpuinfo | uniq"
+						echo "The following parameters were selected:"
+						echo "ENV_TYPE: ${ENV_TYPE}"
+						echo "IP_2ND_OCTET: ${IP_2ND_OCTET}"
+						echo "NSPACE: ${NSPACE}"
+						echo "APP_NAME: ${APP_NAME}"
+						echo "ARTIFACT_SOURCE: ${ARTIFACT_SOURCE}"
+						echo "APP_VERSION: ${APP_VERSION}"
+						echo "Actual Pipline Selected: ${ENV_TYPE_FROM_URL}"
+						if (ENV_TYPE_FROM_URL != ENV_TYPE) {
+							error("Build Failed! Selected ENV_TYPE: '${ENV_TYPE}' does not match to selected pipeline: '${ENV_TYPE_FROM_URL}")
+						}
+					}
+				}
+			}
+		}
+		stage("Checkout Code") {
+			steps {
+				gitlabCommitStatus(name: 'Checkout Code') {
+					checkout scm
+				}
+			}
+		}
+		stage("Deploy Application") {
+			steps {
+				gitlabCommitStatus(name: 'Deploy Application') {
+					script {
+						if (!fileExists('./bin/deploy-app-from-jenkins.sh')) {
+							error("Build Failed, unable to find ./bin/deploy-app-from-jenkins.sh")
+						}
+						sh """#!/usr/bin/env /bin/bash
+						export APP_NAME=${params.APP_NAME}
+						echo "INFO: AWS caller-identity: \$(aws sts get-caller-identity --query Account --output text --region ${AWS_DEFAULT_REGION})"
+						echo "INFO: printenv"
+						printenv | sort | grep "ENV_TYPE\\|BUILD_URL\\|ENV_NAME\\|APP_NAME\\|NSPACE\\|APP_W_DEPENDENCIES\\|APP_VERSION"
+						source ./bin/deploy-app-from-jenkins.sh
+						"""
+					}
+				}
+			}
+		}
+	}
+	post {
+		always {
+			deleteDir() /* clean up our workspace */
+		}
+		failure {
+			updateGitlabCommitStatus name: 'build', state: 'failed'
+		}
+		success {
+			updateGitlabCommitStatus name: 'build', state: 'success'
+		}
+	}
+}

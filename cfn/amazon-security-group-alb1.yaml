@@ -1,0 +1,129 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon external ALBs Security Groups.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentType
+          - EnvironmentName
+          - EksName
+          - NameSpace
+          - NameSuffix
+          - TrustedIpCidr
+
+Parameters:
+
+  EnvironmentType:
+    Type: String
+    Description: Environment (test, dev, qa, stg, uat, prod).
+    AllowedPattern: '^[a-z]+$'
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  EksName:
+    Description: The cluster name provided when the cluster was created. If it is incorrect, nodes will not be able to join the cluster.
+    Type: String
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+
+  NameSpace:
+    Type: String
+    Description: NameSpace (nspace10, nspace20, nspace21, nspace60).
+    AllowedPattern: '^[a-z]+[0-9]+$'
+
+  NameSuffix:
+    Description: Name Suffix.
+    Type: String
+
+  TrustedIpCidr:
+    Type: String
+    Description: CidrBlock trusted (Office or VPN) IP range to use in QA Environment
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+
+Conditions:
+  IsProd: !Equals [!Ref EnvironmentType, 'prod']
+  IsQA: !Equals [!Ref EnvironmentType, 'qa']
+  IsNotQA: !Not [!Equals [!Ref EnvironmentType, 'qa']]
+
+Resources:
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "Security group ${NameSuffix} for ${EksName}"
+      VpcId: 
+        Fn::ImportValue: !Sub "${EnvironmentName}-vpc-VpcId"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-security-group-${NameSuffix}-name"
+        - Key: NameSpace
+          Value: !Sub "${NameSpace}"          
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName          
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: !If [IsNotQA, '0.0.0.0/0', !Ref TrustedIpCidr]
+          Description: 'HTTP access'
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: !If [IsNotQA, '0.0.0.0/0', !Ref TrustedIpCidr]
+          Description: 'HTTPS access'
+      # Allow All Outbound
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+
+  AlbSecurityGroupNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/'
+          - !Ref NameSuffix
+          - '/name'
+      Type: String
+      Value: !Sub "${EnvironmentName}-security-group-${NameSuffix}-name"
+      Description: !Sub "${EnvironmentName}-security-group-${NameSuffix}-name SecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  AlbSecurityGroupIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/vpc/security-group/'
+          - !Ref NameSuffix
+          - '/id'
+      Type: String
+      Value: !Ref AlbSecurityGroup
+      Description: !Sub "${EnvironmentName}-security-group-${NameSuffix}-name SecurityGroup in the VPC ${AWS::StackName}"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+Outputs:
+
+  AlbSecurityGroupId:
+    Description: The security group ID
+    Value: !Ref AlbSecurityGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-security-group-${NameSuffix}-id"
+
+  AlbSecurityGroupName:
+    Description: The security group Name
+    Value: !Sub "${EnvironmentName}-security-group-${NameSuffix}-name"

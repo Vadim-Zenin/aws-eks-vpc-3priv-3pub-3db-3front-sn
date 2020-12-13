@@ -1,0 +1,248 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon - custom policies - Released 2020-12-12.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+Resources:
+
+  customClusterAutoscalerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Join
+        - ''
+        - - 'custom_'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-EksName"
+          - '_ClusterAutoscalerPolicy'
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - "autoscaling:DescribeAutoScalingGroups"
+              - "autoscaling:DescribeAutoScalingInstances"
+              - "autoscaling:DescribeLaunchConfigurations"
+              - "autoscaling:DescribeTags"
+              - "autoscaling:SetDesiredCapacity"
+              - "autoscaling:TerminateInstanceInAutoScalingGroup"
+              - "ec2:DescribeLaunchTemplateVersions"
+            Resource:
+              - "*"
+
+  customClusterAutoscalerPolicyNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/policies/ClusterAutoscalerPolicy/name'
+      Type: String
+      Value: !Join
+        - ''
+        - - 'custom_'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-EksName"
+          - '_ClusterAutoscalerPolicy'
+      Description: customClusterAutoscalerPolicy Name
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  customClusterAutoscalerPolicyArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/policies/ClusterAutoscalerPolicy/arn'
+      Type: String
+      Value: !Ref customClusterAutoscalerPolicy
+      Description: customClusterAutoscalerPolicy Arn
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  customAlbIngressPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Join
+        - ''
+        - - 'custom_'
+          - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/env/name'
+          - ':1}}'
+          - '_AlbIngressPolicy'
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - "acm:DescribeCertificate"
+              - "acm:ListCertificates"
+              - "acm:GetCertificate"
+              - "ec2:AuthorizeSecurityGroupIngress"
+              - "ec2:CreateSecurityGroup"
+              - "ec2:CreateTags"
+              - "ec2:DeleteTags"
+              - "ec2:DeleteSecurityGroup"
+              - "ec2:DescribeAccountAttributes"
+              - "ec2:DescribeAddresses"
+              - "ec2:DescribeInstances"
+              - "ec2:DescribeInstanceStatus"
+              - "ec2:DescribeInternetGateways"
+              - "ec2:DescribeNetworkInterfaces"
+              - "ec2:DescribeSecurityGroups"
+              - "ec2:DescribeSubnets"
+              - "ec2:DescribeTags"
+              - "ec2:DescribeVpcs"
+              - "ec2:ModifyInstanceAttribute"
+              - "ec2:ModifyNetworkInterfaceAttribute"
+              - "ec2:RevokeSecurityGroupIngress"
+              - "elasticloadbalancing:AddListenerCertificates"
+              - "elasticloadbalancing:AddTags"
+              - "elasticloadbalancing:CreateListener"
+              - "elasticloadbalancing:CreateLoadBalancer"
+              - "elasticloadbalancing:CreateRule"
+              - "elasticloadbalancing:CreateTargetGroup"
+              - "elasticloadbalancing:DeleteListener"
+              - "elasticloadbalancing:DeleteLoadBalancer"
+              - "elasticloadbalancing:DeleteRule"
+              - "elasticloadbalancing:DeleteTargetGroup"
+              - "elasticloadbalancing:DeregisterTargets"
+              - "elasticloadbalancing:DescribeListenerCertificates"
+              - "elasticloadbalancing:DescribeListeners"
+              - "elasticloadbalancing:DescribeLoadBalancers"
+              - "elasticloadbalancing:DescribeLoadBalancerAttributes"
+              - "elasticloadbalancing:DescribeRules"
+              - "elasticloadbalancing:DescribeSSLPolicies"
+              - "elasticloadbalancing:DescribeTags"
+              - "elasticloadbalancing:DescribeTargetGroups"
+              - "elasticloadbalancing:DescribeTargetGroupAttributes"
+              - "elasticloadbalancing:DescribeTargetHealth"
+              - "elasticloadbalancing:ModifyListener"
+              - "elasticloadbalancing:ModifyLoadBalancerAttributes"
+              - "elasticloadbalancing:ModifyRule"
+              - "elasticloadbalancing:ModifyTargetGroup"
+              - "elasticloadbalancing:ModifyTargetGroupAttributes"
+              - "elasticloadbalancing:RegisterTargets"
+              - "elasticloadbalancing:RemoveListenerCertificates"
+              - "elasticloadbalancing:RemoveTags"
+              - "elasticloadbalancing:SetIpAddressType"
+              - "elasticloadbalancing:SetSecurityGroups"
+              - "elasticloadbalancing:SetSubnets"
+              - "elasticloadbalancing:SetWebACL"
+              - "iam:CreateServiceLinkedRole"
+              - "iam:GetServerCertificate"
+              - "iam:ListServerCertificates"
+              - "cognito-idp:DescribeUserPoolClient"
+              - "waf-regional:GetWebACLForResource"
+              - "waf-regional:GetWebACL"
+              - "waf-regional:AssociateWebACL"
+              - "waf-regional:DisassociateWebACL"
+              - "tag:GetResources"
+              - "tag:TagResources"
+              - "waf:GetWebACL"
+              - "wafv2:GetWebACL"
+              - "wafv2:GetWebACLForResource"
+              - "wafv2:AssociateWebACL"
+              - "wafv2:DisassociateWebACL"
+              - "shield:DescribeProtection"
+              - "shield:GetSubscriptionState"
+              - "shield:DeleteProtection"
+              - "shield:CreateProtection"
+              - "shield:DescribeSubscription"
+              - "shield:ListProtections"
+              - "route53:ListHostedZones"
+              - "route53:ListResourceRecordSets"
+            Resource:
+              - "*"
+          - Effect: Allow
+            Action:
+              - "route53:ChangeResourceRecordSets"
+            Resource:
+              - "arn:aws:route53:::hostedzone/*"
+
+  customAlbIngressPolicyNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/policies/AlbIngressPolicy/name'
+      Type: String
+      Value: !Join
+        - ''
+        - - 'custom_'
+          - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/env/name'
+          - ':1}}'
+          - '_AlbIngressPolicy'
+      Description: customAlbIngressPolicy Name
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  customAlbIngressPolicyArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/policies/AlbIngressPolicy/arn'
+      Type: String
+      Value: !Ref customAlbIngressPolicy
+      Description: customAlbIngressPolicy Arn
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+Outputs:
+
+  customClusterAutoscalerPolicyName:
+    Description: custom ClusterAutoscalerPolicy Name for all EKS nodes
+    Value: !Join
+        - ''
+        - - 'custom_'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-EksName"
+          - '_ClusterAutoscalerPolicy'
+
+  customClusterAutoscalerPolicyArn:
+    Description: custom ClusterAutoscalerPolicy Arn for all EKS nodes
+    Value: !Ref customClusterAutoscalerPolicy
+    Export:
+      Name:
+        !Sub "${EnvironmentName}-ClusterAutoscalerPolicy"
+
+  customAlbIngressPolicyName:
+    Description: custom AlbIngressPolicy Name for ALB
+    Value: !Join
+        - ''
+        - - 'custom_'
+          - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/env/name'
+          - ':1}}'
+          - '_AlbIngressPolicy'
+
+  customAlbIngressPolicyArn:
+    Description: custom AlbIngressPolicy Arn for ALB
+    Value: !Ref customAlbIngressPolicy
+    Export:
+      Name:
+        !Sub "${EnvironmentName}-AlbIngressPolicy"

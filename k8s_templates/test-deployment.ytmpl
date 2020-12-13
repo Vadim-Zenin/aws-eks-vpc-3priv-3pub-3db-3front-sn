@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${ENV_NAME}-${NSPACE}-${APP_NAME}
+  namespace: ${NSPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${ENV_NAME}-${NSPACE}-${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${ENV_NAME}-${NSPACE}-${APP_NAME}
+      annotations:
+        checksum/config: $(cat ./k8s_templates/${APP_NAME}-deployment.ytmpl | sha256sum | cut -d' ' -f1)
+    spec:
+      containers:
+      - name: ${ENV_NAME}-${NSPACE}-${APP_NAME}
+        image: vadimzenin/ubuntu-tools-min:latest
+        imagePullPolicy: Always
+        command: ["/bin/bash", "-c", "sleep 864000"]
+        resources:
+          requests:
+            memory: "56Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      # affinity:
+      #   podAntiAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #     - labelSelector:
+      #         matchExpressions:
+      #         - key: app
+      #           operator: In
+      #           values:
+      #           - ${ENV_NAME}-${NSPACE}-${APP_NAME}
+      #       topologyKey: "kubernetes.io/hostname"
+      nodeSelector:
+        nodesgroup: ${NSPACE}
+---

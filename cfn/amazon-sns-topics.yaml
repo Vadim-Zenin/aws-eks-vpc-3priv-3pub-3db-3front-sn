@@ -1,0 +1,84 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon SNS topics - Released 2020-12-12.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+          - NameSpace
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  NameSpace:
+    Type: String
+    Description: NameSpace (nspace10, nspace20, nspace21, nspace60).
+    AllowedPattern: '^[a-z]+[0-9]+$'
+
+
+Resources:
+
+  # Shared SNS topic used by health check alarms
+  SnsTopicAlarm:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${EnvironmentName}-${NameSpace}-alarms"
+      Tags:
+      - Key: Name
+        Value: !Sub "${EnvironmentName}-${NameSpace}-alarms"
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+      - Key: cloudformation:stack-name
+        Value: !Ref AWS::StackName
+
+  SnsTopicAlarmNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/'
+          - !Sub ${NameSpace}
+          - '/configs/sns/1/name'
+      Type: String
+      Value: !Sub "${EnvironmentName}-${NameSpace}-alarms"
+      Description: SNS Topic Alarms Name
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  SnsTopicAlarmArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/'
+          - !Sub ${NameSpace}
+          - '/configs/sns/1/arn'
+      Type: String
+      Value: !Ref SnsTopicAlarm
+      Description: SNS Topic Alarms Arn
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+
+Outputs:
+
+  SnsTopicAlarm:
+    Description: SNS Topic Alarms
+    Value: !Ref SnsTopicAlarm
+    Export:
+      Name:
+        !Sub "${EnvironmentName}-${NameSpace}-SnsTopicAlarm-arn"

@@ -1,0 +1,109 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EKS (Kubernetes) Cluster - Released 2020-12-12.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+          - EksVersion
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  EksVersion:
+    Type: String
+    Description: EKS Cluster Version.
+    AllowedPattern: '^[0-9].[0-9.+]*$'
+    ConstraintDescription: must begin with a number and contain only dot and numbers (1.16, 1.18, etc).
+
+Resources:
+
+  EksCluster:
+    Type: 'AWS::EKS::Cluster'
+    Properties:
+      Name: 
+        Fn::ImportValue: !Sub "${EnvironmentName}-EksName"
+      Version: !Ref EksVersion
+      RoleArn: 
+        Fn::ImportValue: !Sub "${EnvironmentName}-RoleArn"
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub "${EnvironmentName}-ControlPlaneSecurityGroup"
+        SubnetIds: !Split
+          - ","
+          - Fn::ImportValue: !Sub "${EnvironmentName}-vpc-K8sSubnetIds"
+
+  EksClusterArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/arn'
+      Type: String
+      Value:
+        Fn::GetAtt: EksCluster.Arn
+      Description: EKS Cluster Arn
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  EksClusterEndpointParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/endpoint'
+      Type: String
+      Value: 
+        Fn::GetAtt: EksCluster.Endpoint
+      Description: EKS Cluster Endpoint
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  EksClusterCertificateParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/cert'
+      Type: String
+      Value: 
+        Fn::GetAtt: EksCluster.CertificateAuthorityData
+      Description: EKS Cluster Certificate
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+Outputs:
+
+  ClusterARN:
+    Value:
+      Fn::GetAtt: EksCluster.Arn
+    Export:
+      Name:
+        !Sub "${EnvironmentName}-eksClusterArn"
+
+  ClusterEndpoint:
+    Value:
+      Fn::GetAtt: EksCluster.Endpoint
+    Export:
+      Name:
+        !Sub "${EnvironmentName}-eksClusterEndpoint"
+
+  ClusterCertificateAuthority:
+    Value:
+      Fn::GetAtt: EksCluster.CertificateAuthorityData

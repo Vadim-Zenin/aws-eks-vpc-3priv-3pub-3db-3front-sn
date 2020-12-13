@@ -1,0 +1,256 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon EKS Service Role, CloudFrontOriginAccessIdentity (skipped), EKS Logs - Released 2020-12-12'
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+          - EksName
+          - RoleName
+          - SsmBasePath
+          - LogGroupRetentionInDays
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  EksName:
+    Type: String
+    Description: The cluster name provided when the cluster was created. If it is incorrect, nodes will not be able to join the cluster.
+    AllowedPattern: '^[a-z]+[-a-z0-9]*$'
+
+  RoleName:
+    Type: String
+    Description: Amazon EKS Service Role Name.
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric -_ characters.
+
+  SsmBasePath:
+    Type: String
+    Description: AWS Parameter Store Key base path (name).
+    AllowedPattern: '^[/][-_/a-z0-9]*$'
+    ConstraintDescription: must begin with / and contain only lower case alphanumeric -_ characters.
+
+  LogGroupRetentionInDays:
+    Type: Number
+    Description: Log Group Retention In Days number, example 5.
+    Default: 5
+
+Resources:
+
+  AWSServiceRoleForAmazonEKS:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - eks.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonRoute53DomainsFullAccess
+      Tags:
+      - Key: Name
+        Value: !Ref RoleName
+      - Key: EnvironmentName
+        Value: !Ref EnvironmentName
+      - Key: cloudformation:stack-name
+        Value: !Ref AWS::StackName
+
+  RoleArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/eks/service-role/arn"
+      Type: String
+      Value: !GetAtt AWSServiceRoleForAmazonEKS.Arn
+      Description: !Sub "${RoleName} arn"
+      # AllowedPattern: "^[a-zA-Z_-:]{1,10}$"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  RoleNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/eks/service-role/name"
+      Type: String
+      Value: !Ref RoleName
+      Description: !Sub "${RoleName} name"
+      # AllowedPattern: "^[a-zA-Z_-:]{1,10}$"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  # CfOriginAccessIdentity:
+  #   Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
+  #   Properties:
+  #     CloudFrontOriginAccessIdentityConfig: 
+  #       Comment: !Sub "${EnvironmentName}-access-identity"
+
+  # CfOriginAccessIdentityParameter:
+  #   Type: AWS::SSM::Parameter
+  #   Properties:
+  #     Name: !Sub "${SsmBasePath}/infra/CfOriginAccessIdentity"
+  #     Type: String
+  #     Value: !Ref CfOriginAccessIdentity
+  #     Description: !Sub "${EnvironmentName}-access-identity"
+  #     # AllowedPattern: "^[a-zA-Z_-:]{1,10}$"
+  #     Tags:
+  #       EnvironmentName: !Ref EnvironmentName
+  #       cloudformation:stack-name: !Ref AWS::StackName
+
+  EksNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/eks/name"
+      Type: String
+      Value: !Ref EksName
+      Description: EKS cluster name
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  EKSapplicationLogsGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/containerinsights/${EksName}/application"
+      RetentionInDays: !Ref LogGroupRetentionInDays
+
+  EKSapplicationLogsGroupParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/eks/logs/loggroup/application/name"
+      Type: String
+      Value: !Ref EKSapplicationLogsGroup
+      Description: EKS application Logs Group 
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  EKSdataplaneLogsGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/containerinsights/${EksName}/dataplane"
+      RetentionInDays: !Ref LogGroupRetentionInDays
+
+  EKSdataplaneLogsGroupParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/eks/logs/loggroup/dataplane/name"
+      Type: String
+      Value: !Ref EKSdataplaneLogsGroup
+      Description: EKS dataplane Logs Group 
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  EKShostLogsGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/containerinsights/${EksName}/host"
+      RetentionInDays: !Ref LogGroupRetentionInDays
+
+  EKShostLogsGroupParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/eks/logs/loggroup/host/name"
+      Type: String
+      Value: !Ref EKShostLogsGroup
+      Description: EKS host Logs Group 
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  EKSperformanceLogsGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub "/aws/containerinsights/${EksName}/performance"
+      RetentionInDays: !Ref LogGroupRetentionInDays
+
+  EKSperformanceLogsGroupParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${SsmBasePath}/infra/eks/logs/loggroup/performance/name"
+      Type: String
+      Value: !Ref EKSperformanceLogsGroup
+      Description: EKS performance Logs Group 
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+Outputs:
+
+  RoleArn:
+    Description: The role that EKS will use to create AWS resources for Kubernetes clusters
+    Value: !GetAtt AWSServiceRoleForAmazonEKS.Arn
+    Export:
+      Name: !Sub "${EnvironmentName}-RoleArn"
+
+  EksName:
+    Description: EKS cluster name
+    Value: !Ref EksName
+    Export:
+      Name: !Sub "${EnvironmentName}-EksName"
+
+  SsmBasePath:
+    Description: Ssm Parameter Store Base Path
+    Value: !Ref SsmBasePath
+    Export:
+      Name: !Sub "${EnvironmentName}-SsmBasePath"
+
+  SsmConfigsPath:
+    Description: Ssm Parameter Store Configs Path
+    Value: !Sub "${SsmBasePath}/configs"
+    Export:
+      Name: !Sub "${EnvironmentName}-SsmConfigsPath"
+
+  EKSapplicationLogsGroup:
+    Description: EKS application Logs Group
+    Value: !Ref EKSapplicationLogsGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-EKSapplicationLogsGroup"
+
+  EKSdataplaneLogsGroup:
+    Description: EKS dataplane Logs Group
+    Value: !Ref EKSdataplaneLogsGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-EKSdataplaneLogsGroup"
+
+  EKShostLogsGroup:
+    Description: EKS host Logs Group
+    Value: !Ref EKShostLogsGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-EKShostLogsGroup"
+
+  EKSperformanceLogsGroup:
+    Description: EKS performance Logs Group
+    Value: !Ref EKSperformanceLogsGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-EKSperformanceLogsGroup"
+
+  # CfOriginAccessIdentity:
+  #   Description: CloudFrontOriginAccessIdentity
+  #   Value: !Ref CfOriginAccessIdentity
+  #   Export:
+  #     Name: !Sub "${EnvironmentName}-CloudFrontOriginAccessIdentity"
+
+  # CfOriginAccessIdentityCanonicalUserId:
+  #   Description: CloudFrontOriginAccessIdentity CanonicalUserId
+  #   Value: !GetAtt CfOriginAccessIdentity.S3CanonicalUserId
+  #   Export:
+  #     Name: !Sub "${EnvironmentName}-CloudFrontOriginAccessIdentity-CanonicalUserId"

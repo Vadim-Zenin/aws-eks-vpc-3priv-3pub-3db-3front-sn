@@ -1,0 +1,336 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EKS - main Node Group - Released 2020-12-12
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+          - EksName
+          - NodeImageId
+          - NodeGroupName
+          - BootstrapArgumentsOpts
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  EksName:
+    Description: The cluster name provided when the cluster was created. If it is incorrect, nodes will not be able to join the cluster.
+    Type: String
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+
+  NodeImageId:
+    Description: AMI id for the node instances.
+    Type: AWS::EC2::Image::Id
+
+  BootstrapArgumentsOpts:
+    Description: Arguments to pass to the bootstrap script. See files/bootstrap.sh in https://github.com/awslabs/amazon-eks-ami
+    Type: String
+    Default: ""
+
+  NodeGroupName:
+    Description: Unique identifier for the Node Group.
+    Type: String
+
+
+Resources:
+
+  NodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref NodeInstanceRole
+
+  NodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EksName}-nodes-${NodeGroupName}-role"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+        - Fn::ImportValue: !Sub "${EnvironmentName}-ClusterAutoscalerPolicy"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-AlbIngressPolicy"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-NodeGroupPolicymain"
+
+  NodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for all nodes in the cluster
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-vpc-VpcId"
+      Tags:
+        - Key: !Sub kubernetes.io/cluster/${EksName}
+          Value: owned
+        - Key: Name
+          Value: !Sub "${EksName}-${NodeGroupName}"
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+  NodeSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: NodeSecurityGroup
+    Properties:
+      Description: Allow node to communicate with each other
+      GroupId: !Ref NodeSecurityGroup
+      SourceSecurityGroupId: !Ref NodeSecurityGroup
+      IpProtocol: -1
+      FromPort: 0
+      ToPort: 65535
+
+  NodeSecurityGroupFromControlPlaneIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: NodeSecurityGroup
+    Properties:
+      Description: Allow worker Kubelets and pods to receive communication from the cluster control plane
+      GroupId: !Ref NodeSecurityGroup
+      SourceSecurityGroupId: 
+        Fn::ImportValue: !Sub "${EnvironmentName}-ControlPlaneSecurityGroup"
+      IpProtocol: tcp
+      FromPort: 1025
+      ToPort: 65535
+
+  ControlPlaneEgressToNodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroupEgress
+    DependsOn: NodeSecurityGroup
+    Properties:
+      Description: Allow the cluster control plane to communicate with worker Kubelet and pods
+      GroupId: 
+        Fn::ImportValue: !Sub "${EnvironmentName}-ControlPlaneSecurityGroup"
+      DestinationSecurityGroupId: !Ref NodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 1025
+      ToPort: 65535
+
+  NodeSecurityGroupFromControlPlaneOn443Ingress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: NodeSecurityGroup
+    Properties:
+      Description: Allow pods running extension API servers on port 443 to receive communication from cluster control plane
+      GroupId: !Ref NodeSecurityGroup
+      SourceSecurityGroupId: 
+        Fn::ImportValue: !Sub "${EnvironmentName}-ControlPlaneSecurityGroup"
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+
+  ControlPlaneEgressToNodeSecurityGroupOn443:
+    Type: AWS::EC2::SecurityGroupEgress
+    DependsOn: NodeSecurityGroup
+    Properties:
+      Description: Allow the cluster control plane to communicate with pods running extension API servers on port 443
+      GroupId: 
+        Fn::ImportValue: !Sub "${EnvironmentName}-ControlPlaneSecurityGroup"
+      DestinationSecurityGroupId: !Ref NodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+
+  ClusterControlPlaneSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: NodeSecurityGroup
+    Properties:
+      Description: Allow pods to communicate with the cluster API Server
+      GroupId: 
+        Fn::ImportValue: !Sub "${EnvironmentName}-ControlPlaneSecurityGroup"
+      SourceSecurityGroupId: !Ref NodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+
+
+  NodeGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName: !Ref NodeLaunchConfig
+      MinSize: !Join
+        - ''
+        - - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/nodes-group/0/min'
+          - ':1}}'
+      DesiredCapacity: !Join
+        - ''
+        - - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/nodes-group/0/desired'
+          - ':1}}'
+      MaxSize: !Join
+        - ''
+        - - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/nodes-group/0/max'
+          - ':1}}'
+      VPCZoneIdentifier: !Split
+          - ","
+          - Fn::ImportValue: !Sub "${EnvironmentName}-vpc-PrivateSubnetIds"
+      MetricsCollection: 
+        - 
+          Granularity: "1Minute"
+          Metrics: 
+            - "GroupMinSize"
+            - "GroupMaxSize"
+            - "GroupDesiredCapacity"
+            - "GroupDesiredCapacity"
+            - "GroupInServiceInstances"
+            - "GroupTotalInstances"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EksName}-${NodeGroupName}-node"
+          PropagateAtLaunch: true
+          #TODO add random number at the end
+        - Key: !Sub kubernetes.io/cluster/${EksName}
+          Value: owned
+          PropagateAtLaunch: true
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+          PropagateAtLaunch: true
+        - Key: !Sub k8s.io/cluster-autoscaler/${EksName}
+          Value: owned
+          PropagateAtLaunch: true
+        - Key: k8s.io/cluster-autoscaler/enabled
+          Value: true
+          PropagateAtLaunch: true
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 1
+        MinInstancesInService: !Join
+          - ''
+          - - '{{resolve:ssm:'
+            - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+            - '/infra/eks/nodes-group/0/desired'
+            - ':1}}'
+        PauseTime: PT5M
+
+  NodeLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: false
+      IamInstanceProfile: !Ref NodeInstanceProfile
+      ImageId: !Ref NodeImageId
+      InstanceType: !Join
+        - ''
+        - - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/nodes-group/0/instance-type'
+          - ':1}}'
+      KeyName: !Join
+        - ''
+        - - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/instance_key_pair1/name'
+          - ':1}}'
+      SecurityGroups:
+        - !Ref NodeSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Join
+            - ''
+            - - '{{resolve:ssm:'
+              - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+              - '/infra/eks/nodes-group/0/volume-size'
+              - ':1}}'
+            VolumeType: gp2
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            set -o xtrace
+            /etc/eks/bootstrap.sh ${EksName} ${BootstrapArgumentsOpts}
+            /opt/aws/bin/cfn-signal --exit-code $? \
+              --stack  ${AWS::StackName} \
+              --resource NodeGroup  \
+              --region ${AWS::Region}
+      InstanceMonitoring: !Join
+        - ''
+        - - '{{resolve:ssm:'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/nodes-group/0/autoscaling-group-monitoring-detailed'
+          - ':1}}'
+
+  NodeGroupNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/nodes-group/0/node-group/name'
+      Type: String
+      Value: !Ref NodeGroup
+      Description: Node Group main Arn
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  NodeInstanceRoleArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/nodes-group/0/instance-role/arn'
+      Type: String
+      Value: !GetAtt NodeInstanceRole.Arn
+      Description: Node Group main NodeInstanceRoleArn
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  NodeSecurityGroupIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/eks/nodes-group/0/security-group/id'
+      Type: String
+      Value: !Ref NodeSecurityGroup
+      Description: Node Group main NodeSecurityGroupId
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+Outputs:
+
+  NodeGroupName:
+    Description: AutoScalingGroup
+    Value: !Ref NodeGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-NodeGroup-main-Name"
+
+  NodeInstanceProfileArn:
+    Description: The node instance role
+    Value: {"Fn::GetAtt" : ["NodeInstanceProfile", "Arn"] }
+
+  NodeInstanceRoleArn:
+    Description: The node instance role
+    Value: !GetAtt NodeInstanceRole.Arn
+    Export:
+      Name: !Sub "${EnvironmentName}-NodeGroup-main-NodeInstanceRoleArn"
+
+  NodeSecurityGroupId:
+    Description: The security group for the node group
+    Value: !Ref NodeSecurityGroup
+    Export:
+      Name: !Sub "${EnvironmentName}-NodeGroup-main-NodeSecurityGroupId"
+

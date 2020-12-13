@@ -1,0 +1,137 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EKS - custom main Node Group policy - Released 2020-12-12.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+          - EksName
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  EksName:
+    Description: The cluster name provided when the cluster was created. If it is incorrect, nodes will not be able to join the cluster.
+    Type: String
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+
+Resources:
+
+  customNodeGroupPolicymain:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Join
+        - ''
+        - - 'custom_'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-EksName"
+          - '_nodes_policy_'
+          - 'main'
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - "cloudformation:Describe*"
+              - "cloudformation:Get*"
+              - "cloudformation:List*"
+              - "cloudwatch:PutMetricData"
+              - "ec2:Describe*"
+              - "ec2:Get*"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:BatchGetImage"
+              - "ecr:GetAuthorizationToken"
+              - "ecr:GetDownloadUrlForLayer"
+              - "iam:List*"
+              - "kms:Decrypt"
+              - "secretsmanager:Describe*"
+              - "secretsmanager:Get*"
+              - "secretsmanager:List*"
+              - "ssm:DescribeParameters"
+              - "ssm:GetParameter"
+              - "ssm:GetParameterHistory"
+              - "ssm:GetParameters"
+              - "ssm:GetParametersByPath"
+            Resource:
+              - "*"
+          - Effect: Allow
+            Action:
+              - "sqs:Delete*"
+              - "sqs:Get*"
+              - "sqs:List*"
+              - "sqs:ReceiveMessage"
+              - "sqs:Send*"
+              - "sqs:SetQueueAttributes"
+            Resource:
+              - !Sub arn:aws:sqs:*:${AWS::AccountId}:${EnvironmentName}-*
+          - Effect: Allow
+            Action:
+              - "logs:*"
+            Resource:
+              - !Sub arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/containerinsights/${EksName}/*
+          - Effect: Allow
+            Action:
+              - "wafv2:Get*"
+            Resource:
+              - !Sub arn:aws:wafv2:*:${AWS::AccountId}:regional/webacl/*
+              
+  customNodeGroupPolicymainNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/policies/main/name'
+      Type: String
+      Value: !Join
+        - ''
+        - - 'custom_'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-EksName"
+          - '_nodes_policy_'
+          - 'main'
+      Description: custom Node Group main Policy Name
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+  customNodeGroupPolicymainArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - Fn::ImportValue: !Sub "${EnvironmentName}-SsmBasePath"
+          - '/infra/policies/main/arn'
+      Type: String
+      Value: !Ref customNodeGroupPolicymain
+      Description: custom Node Group main Policy Arn
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+Outputs:
+
+  customNodeGroupPolicymainName:
+    Description: Nodes group policy Name
+    Value: !Join
+        - ''
+        - - 'custom_'
+          - Fn::ImportValue: !Sub "${EnvironmentName}-EksName"
+          - '_nodes_policy_'
+          - 'main'
+
+  customNodeGroupPolicymainArn:
+    Description: Nodes group policy Arn
+    Value: !Ref customNodeGroupPolicymain
+    Export:
+      Name:
+        !Sub "${EnvironmentName}-NodeGroupPolicymain"
+

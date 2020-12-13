@@ -1,0 +1,68 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${ENV_NAME}-${NSPACE}-${APP_NAME}
+  namespace: ${NSPACE}
+spec:
+  replicas: ${MY_REPLICAS}
+  selector:
+    matchLabels:
+      app: ${ENV_NAME}-${NSPACE}-${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${ENV_NAME}-${NSPACE}-${APP_NAME}
+      annotations:
+        checksum/config: $(cat ./k8s_templates/${APP_NAME}-deployment.ytmpl | sha256sum | cut -d' ' -f1)
+    spec:
+      containers:
+      - name: ${APP_NAME}
+        image: ${AWS_ECR_REGISTRY_URL}/${APP_NAME}:${APP_VERSION}
+        imagePullPolicy: Always
+        env:
+          - name: SERVICE_PORT
+            value: "${MY_CONTAINER_PORT}"
+          - name: SERVICE_HOSTNAME
+            value: "${APP_NAME}"
+          - name: ENV_NAME
+            value: "${ENV_NAME}"
+          - name: ENV_SPACE
+            value: "${NSPACE}"
+        ports:
+        - containerPort: ${MY_CONTAINER_PORT}
+        resources:
+          requests:
+            memory: "1024Mi"
+            cpu: "1000m"
+          limits:
+            memory: "1024Mi"
+            cpu: "1000m"
+        readinessProbe:
+          httpGet:
+            path: /health.html
+            port: ${MY_CONTAINER_PORT}
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 2
+        livenessProbe:
+          httpGet:
+            path: /health.html
+            port: ${MY_CONTAINER_PORT}
+          initialDelaySeconds: 120
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 2
+      # affinity:
+      #   podAntiAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #     - labelSelector:
+      #         matchExpressions:
+      #         - key: app
+      #           operator: In
+      #           values:
+      #           - ${ENV_NAME}-${NSPACE}-${APP_NAME}
+      #       topologyKey: "kubernetes.io/hostname"
+      nodeSelector:
+        nodesgroup: ${NSPACE}
+---

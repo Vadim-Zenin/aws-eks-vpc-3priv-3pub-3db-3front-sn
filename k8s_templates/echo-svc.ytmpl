@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${APP_ENVIRONMENT}-${NSPACE}-${APP_NAME}-svc
+  namespace: ${NSPACE}
+  labels:
+    app: ${APP_ENVIRONMENT}-${NSPACE}-${APP_NAME}
+spec:
+  ports:
+    - port: ${MY_APP_PORT}
+      targetPort: ${MY_CONTAINER_PORT}
+  type: NodePort
+  selector:
+    app: "${APP_ENVIRONMENT}-${NSPACE}-${APP_NAME}"
+---

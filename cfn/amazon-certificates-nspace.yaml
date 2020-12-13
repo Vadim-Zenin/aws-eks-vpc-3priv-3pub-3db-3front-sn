@@ -1,0 +1,106 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon - Certificates - Released 2020-12-12.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+          - NameSpace
+          - SsmBasePath
+          - DomainName
+          - Cnames
+          - Route53ZoneId
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: Environment (dev, test16, qa56, stg97).
+    AllowedPattern: '^[a-z][-a-z0-9]*$'
+    ConstraintDescription: must begin with a letter and contain only lower case alphanumeric - characters.
+
+  NameSpace:
+    Type: String
+    Description: NameSpace (nspace10, nspace20, nspace21, nspace60).
+    AllowedPattern: '^[a-z]+[0-9]+$'
+
+  SsmBasePath:
+    Type: String
+    Description: AWS Parameter Store Key base path (name).
+    AllowedPattern: '^[/][-_/a-z0-9]*$'
+    ConstraintDescription: must begin with / and contain only lower case alphanumeric -_ characters.
+
+  DomainName:
+    Type: String
+    Default: None
+    Description: DNS name FQDN (vswaretest.com, vsware.ie).
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: '(?!-)[a-zA-Z0-9-.]{1,63}(?<!-)'
+    ConstraintDescription: must be a valid DNS zone name.
+
+  Cnames:
+    Type: CommaDelimitedList
+    Description: >
+      The CNAMEs (alternate domain names) for the distribution, as a
+      comma-delimited list (e.g. "cdn1.example.com,cdn2.example.com")
+
+  Route53ZoneId:
+    Type: String
+    Description: Route53 Zone ID.
+    AllowedPattern: '^[A-Z0-9]+{14,32}$'
+
+Resources:
+  # ACM Certificate
+  # This gets created when no ARN for a pre-existing certificate is provided
+  Certificate:
+    Type: "AWS::CertificateManager::Certificate"
+    Properties:
+      DomainName: !Select [0, !Ref Cnames]
+      SubjectAlternativeNames: !Ref Cnames
+      ValidationMethod: DNS
+      DomainValidationOptions:
+      - DomainName: !Select [0, !Ref Cnames]
+        HostedZoneId: !Ref Route53ZoneId
+      - DomainName: !Select [1, !Ref Cnames]
+        HostedZoneId: !Ref Route53ZoneId
+      Tags:
+        - Key: Name
+          Value: !Sub "wildcard.${DomainName}"
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+
+  CertificateArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Join
+        - ''
+        - - !Ref SsmBasePath
+          - '/'
+          - !Ref NameSpace
+          - '/infra/certs/'
+          - !Sub ${AWS::Region}
+          - '/1/arn'
+      Type: String
+      Value: !Ref Certificate
+      Description: !Sub "${EnvironmentName}-${NameSpace} Certificate"
+      Tags:
+        EnvironmentName: !Ref EnvironmentName
+        cloudformation:stack-name: !Ref AWS::StackName
+
+Outputs:
+
+  CertificateArn:
+    Description: Certificate
+    Value: !Ref Certificate
+    Export:
+      Name:
+        !Sub "${EnvironmentName}-${NameSpace}-certificate-${AWS::Region}-1"
+

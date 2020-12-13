@@ -1,0 +1,24 @@
+[default]
+region = eu-west-1
+output = text
+cli_follow_urlparam = false
+
+[profile abc-test]
+region = eu-west-1
+output = text
+cli_follow_urlparam = false
+
+[profile abc-dev]
+region = eu-west-1
+output = text
+cli_follow_urlparam = false
+
+[profile abc-qa]
+region = eu-west-1
+output = text
+cli_follow_urlparam = false
+
+[profile abc-prod]
+region = eu-west-1
+output = text
+cli_follow_urlparam = false

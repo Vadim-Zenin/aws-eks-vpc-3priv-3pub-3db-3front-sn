@@ -1,0 +1,185 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EKS - Applications docker ECR repositories - Released 2020-12-12.
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentType
+          - ImagesNumberToKeep
+          - DaysToRetainUntaggedImages
+          - DaysToRetainFeatureBranchImages
+          - PushPrincipal01
+          - PushPrincipal02
+          - PushPrincipal03
+          - PushPrincipal04
+          - PushPrincipal05
+          - PushPrincipal06
+          - PullPrincipal01
+          - PullPrincipal02
+
+Parameters:
+
+  EnvironmentType:
+    Type: String
+    Description: Environment (test, tools, dev, qa, stg, uat, prod).
+    AllowedPattern: '^[a-z]+$'
+  ImagesNumberToKeep:
+    Description: The number of images to keep.
+    Type: Number
+    Default: 10
+  DaysToRetainUntaggedImages:
+    Description: The number of days to retain untagged images.
+    Type: Number
+    Default: 3
+  DaysToRetainFeatureBranchImages:
+    Description: The number of days to retain feature branch images.
+    Type: Number
+    Default: 21
+  PushPrincipal01:
+    Type: String
+    Description: AWS Principal with push access to ECR.
+  PushPrincipal02:
+    Type: String
+    Description: AWS Principal with push access to ECR.
+  PushPrincipal03:
+    Type: String
+    Description: AWS Principal with push access to ECR.
+  PushPrincipal04:
+    Type: String
+    Description: AWS Principal with push access to ECR.
+  PushPrincipal05:
+    Type: String
+    Description: AWS Principal with push access to ECR.
+  PushPrincipal06:
+    Type: String
+    Description: AWS Principal with push access to ECR.
+  PullPrincipal01:
+    Type: String
+    Description: AWS Principal with pull access to ECR.
+  PullPrincipal02:
+    Type: String
+    Description: AWS Principal with pull access to ECR.
+
+Conditions:
+  IsQA: !Equals [!Ref EnvironmentType, 'qa']
+
+Resources:
+
+  appHttpContentFromGitRepository:
+    Type: 'AWS::ECR::Repository'
+    Properties:
+      RepositoryName: app-http-content-from-git
+      ImageScanningConfiguration: 
+        scanOnPush: "true"
+      LifecyclePolicy:
+        LifecyclePolicyText: !Sub |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Only keep untagged images for ${DaysToRetainUntaggedImages} days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": ${DaysToRetainUntaggedImages}
+                },
+                "action": { "type": "expire" }
+              },
+              {
+                  "rulePriority": 2,
+                  "description": "Keep latest image",
+                  "selection": {
+                      "tagStatus": "tagged",
+                      "countType": "imageCountMoreThan",
+                      "tagPrefixList": ["latest"],
+                      "countNumber": 1
+                  },
+                  "action": {
+                      "type": "expire"
+                  }
+              },
+              {
+                  "rulePriority": 3,
+                  "description": "Keep INT images for ${DaysToRetainFeatureBranchImages} days",
+                  "selection": {
+                      "tagStatus": "tagged",
+                      "tagPrefixList": ["INT"],
+                      "countType": "sinceImagePushed",
+                      "countUnit": "days",
+                      "countNumber": ${DaysToRetainFeatureBranchImages}
+                  },
+                  "action": {
+                      "type": "expire"
+                  }
+              },
+              {
+                  "rulePriority": 4,
+                  "description": "Only keep images for ${ImagesNumberToKeep} days",
+                  "selection": {
+                      "tagStatus": "any",
+                      "countType": "imageCountMoreThan",
+                      "countNumber": ${ImagesNumberToKeep}
+                  },
+                  "action": {
+                      "type": "expire"
+                  }
+              }
+            ]
+          }
+      RepositoryPolicyText: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Sid: AllowPushPull
+            Effect: Allow
+            Principal: 
+              AWS: 
+                - !Sub arn:aws:iam::${AWS::AccountId}:root
+                - !Ref PushPrincipal01
+                - !Ref PushPrincipal02
+                - !Ref PushPrincipal03
+                - !Ref PushPrincipal04
+                - !Ref PushPrincipal05
+                - !Ref PushPrincipal06
+            Action: 
+              - "ecr:*Upload*"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:BatchGetImage"
+              - "ecr:Describe*"
+              - "ecr:Get*"
+              - "ecr:InitiateLayerUpload"
+              - "ecr:ListImages"
+              - "ecr:PutImage"
+              - "ecr:Upload*"
+          - 
+            Sid: AllowPull
+            Effect: Allow
+            Principal: 
+              AWS:
+                - !Sub arn:aws:iam::${AWS::AccountId}:root
+                - !Ref PullPrincipal01
+                - !Ref PullPrincipal02
+            Action: 
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:BatchGetImage"
+              - "ecr:Describe*"
+              - "ecr:Get*"
+              - "ecr:ListImages"
+      Tags:
+        - Key: EnvironmentType
+          Value: !Ref EnvironmentType
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+
+Outputs:
+
+  appHttpContentFromGitRepositoryArn:
+    Value: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/app-http-content-from-git
+  appHttpContentFromGitRepositoryUri:
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/app-http-content-from-git
