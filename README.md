@@ -111,8 +111,6 @@ AWS ALB would be created automatically.
 
 ![AWS ALB Listeners](images/20201213-171500-screenshot.png)
 
-![AWS ALB Listeners](images/20201213-171500-screenshot.png)
-
 ![AWS ALB Listeners Rules](images/20201213-171635-screenshot.png)
 
 ![AWS ALB Listeners Certificate](images/20201213-171533-screenshot.png)
