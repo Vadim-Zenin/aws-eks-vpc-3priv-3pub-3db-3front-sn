@@ -36,7 +36,7 @@ function f_usage()
     echo "Deploy name space to AWS EKS (Kubernetes) 
 Usage:
     $BASE <namespace>(optional)
-    bash -c "export ENV_TYPE="qa" && export IP_2ND_OCTET="56" && export NSPACE="nspace30" && export CI_CD_DEPLOY=false && ./deploy-env-full.sh"
+    bash -c "export ENV_TYPE="qa" && export IP_2ND_OCTET="56" && export NSPACE="nspace30" && export CI_CD_DEPLOY=false && ./bin/deploy-env-full.sh"
 "
     exit 32
 }
