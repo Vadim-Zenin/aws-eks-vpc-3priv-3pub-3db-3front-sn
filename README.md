@@ -145,6 +145,18 @@ DNS record(s) pointed to the AWS ALB would be created automatically in AWS Route
 
 ![AWS Route53 records](images/20201213-172013-screenshot.png)
 
+## Multi-Service Architecture and Infrastructure
+
+How compatible Multi-Service Architecture and monolithic Infrastructure a code?
+
+I prefer atomised or Multi-Service Architecture in Infrastructure.
+
+If I have to update small part of AWS Security Group I should not touch all VPC or EKS Infrastructure and should not trust Black box inside either Terraform or AWS CloudFormation. I prefer to change small part of AWS Security Group only.
+
+### AWS Cloudformation Stacks
+
+![AWS Cloudformation Stacks](images/20201214-101220-AWS-CloudFormation-stacks.png)
+
 ## Cleanup
 
 To delete every resources (VPC, Workers, EKS cluster)
