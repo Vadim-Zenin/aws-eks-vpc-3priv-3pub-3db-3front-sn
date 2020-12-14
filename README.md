@@ -155,7 +155,7 @@ If I have to update small part of AWS Security Group I should not touch all VPC 
 
 ### AWS Cloudformation Stacks
 
-![AWS Cloudformation Stacks](images/20201214-101220-AWS-CloudFormation-stacks.png)
+![AWS Cloudformation Stacks](images/20201213-201224-AWS-CloudFormation-stacks.png)
 
 ## Cleanup
 
