@@ -1,7 +1,7 @@
 #!/bin/bash
 # === Deploy app-http-content-from-git pod on AWS EKS deployment
 # export COMPANY_NAME_SHORT="abc" && export ENV_TYPE="test" && export IP_2ND_OCTET="16" && export NSPACE="nspace60" && export APP_NAME="app-http-content-from-git" && export CI_CD_DEPLOY=false && bash -c "./bin/deploy-env-full.sh"
-# export COMPANY_NAME_SHORT="abc" && export ENV_TYPE="test" && export IP_2ND_OCTET="16" && export NSPACE="nspace60" && export APP_NAME="app-http-content-from-git" && export APP_VERSION="0.0.2" && bash -c "./deploy-env-full.sh"
+# export COMPANY_NAME_SHORT="abc" && export ENV_TYPE="test" && export IP_2ND_OCTET="16" && export NSPACE="nspace60" && export APP_NAME="app-http-content-from-git" && export APP_VERSION="0.0.2" && bash -c "./bin/deploy-env-full.sh"
 
 ################################################################################
 # Functions

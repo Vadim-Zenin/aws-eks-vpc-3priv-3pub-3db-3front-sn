@@ -41,21 +41,6 @@ if [[ "${ENV_NAME}" == "test16" ]] ; then
 
   f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/01/name"  "nspace60"
 
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/name"  "nspace60"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/min" "1"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/desired" "1"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/max" "5"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/autoscaling-group-monitoring-detailed"  "true"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/instance-type" "t3a.xlarge"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/on-demand-base-capacity"  "0"
-  # # Description: "on-demand percentage above base capacity(0-100)"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/on-demand-percentage-above-base-capacity"  "0"
-  # # Description: "spot instance pools(1-20)"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/spot-instance-pools"  "2"
-  # # Description: "multiple spot instances to override (separated by comma)"
-  # # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/instance-types-override"  "a1.large,t3a.large,t3.large,m5a.large,c5.large,c5d.large,c4.large,c3.large,r5a.large"
-  # f_ssm_put_parameter  "String"  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/60/instance-types-override"  "t3a.xlarge,t3.xlarge,m5a.xlarge,c5.xlarge,c5d.xlarge,c4.xlarge,c3.xlarge,r5a.xlarge,t3a.2xlarge"
-
   for ITEM in nspace60; do
     f_log "INFO: Congiguring name space ${ITEM}"
     NSPACE_DIGITS=$(echo "${ITEM}" | sed 's/[^0-9]*//g' | sed 's/^0*//')

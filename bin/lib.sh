@@ -541,9 +541,9 @@ function f_alb_deploy() {
   # Arguments
   # ${1} ALB # example alb1 or alb2 or alb3
   f_log "INFO: Processing ALB ${1}"
-  f_log "INFO: . ./bin/deploy-k8s.sh ${1} ${NSPACE} 12345 12345 1
+  f_log "INFO: . ./deploy-k8s.sh ${1} ${NSPACE} 12345 12345 1
   "
-  . ./bin/deploy-k8s.sh ${1} ${NSPACE} 12345 12345 1
+  . ./deploy-k8s.sh ${1} ${NSPACE} 12345 12345 1
   f_log "INFO: kubectl get ing -n ${NSPACE}"
   kubectl get ing -n ${NSPACE}
 }
@@ -741,9 +741,9 @@ function f_application_deploy() {
   fi
 
   if [[ ! ${1} == "frontend" ]]; then
-    f_log "INFO: source ./bin/deploy-k8s.sh ${1} ${NSPACE} ${PORT} ${CONTAINER_PORT} ${K8S_REPLICAS}
+    f_log "INFO: source ./deploy-k8s.sh ${1} ${NSPACE} ${PORT} ${CONTAINER_PORT} ${K8S_REPLICAS}
     "
-    source ./bin/deploy-k8s.sh ${1} ${NSPACE} ${PORT} ${CONTAINER_PORT} ${K8S_REPLICAS}
+    source ./deploy-k8s.sh ${1} ${NSPACE} ${PORT} ${CONTAINER_PORT} ${K8S_REPLICAS}
   fi
 
   if [[ ! ${1} =~ ^.*?test.* ]] && [[ ! ${1} =~ ^.*?alb.* ]] && [[ ! ${1} == "frontend" ]]; then

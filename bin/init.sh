@@ -61,10 +61,6 @@ if [[ ${INIT_BATCH_MODE} != true ]]; then
     OUTPUT_OPTIONS=">/dev/null 2>&1"
   fi
 
-  f_check_if_installed aws && f_log "INFO: aws version : $(aws --version)"
-  f_check_if_installed aws-iam-authenticator
-  f_check_if_installed kubectl && f_log "INFO: kubectl version : $(kubectl version --client=true)"
-
   APP_NAME="${1:-${APP_NAME}}"
   if [[ -z ${APP_NAME} ]]; then
     f_printf_err_exit "applications name is empty \${APP_NAME}: ${APP_NAME}"
@@ -84,6 +80,10 @@ if [[ ${INIT_BATCH_MODE} != true ]]; then
   fi
   export AWS_SSM_REGION="${AWS_SSM_REGION:-eu-west-1}"
   export AWS_PROFILE="${AWS_PROFILE:-${COMPANY_NAME_SHORT}-${ENV_TYPE}}"
+
+  f_check_if_installed aws && f_log "INFO: aws version : $(aws --version)"
+  f_check_if_installed aws-iam-authenticator
+  f_check_if_installed kubectl && f_log "INFO: kubectl version : $(kubectl version --client=true)"
 
   export ENV_NAME="${ENV_TYPE}${IP_2ND_OCTET}"
   # Next line is used in continuous integration and continuous delivery tool. Do not change without changes in continuous integration and continuous delivery tool as well.

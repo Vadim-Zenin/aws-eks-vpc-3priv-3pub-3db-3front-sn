@@ -50,41 +50,12 @@ getStackOutput() {
   --profile ${AWS_PROFILE}
 }
 
-# # waitStackState() {
-# #   declare desc=""
-# #   declare stack=${1:? required stackName} state=${2:? required stackStatePattern}
-
-# #   echo "Deleting stack: ${stack}. Please take cup of tea."
-# #   while ! aws cloudformation describe-stacks --stack-name ${stack} --query  Stacks[].StackStatus --out text --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE} | grep -q "${state}"; do
-# #     sleep ${SLEEP:=3}
-# #     echo -n .
-# #   done
-# # }
-
-# waitCreateStack() {
-#   declare stack=${1:? required stackName}
-#   echo "Creating stack: ${stack}. Please take cup of tea."
-#   aws cloudformation wait stack-create-complete --stack-name $stack --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
-# }
-
-# waitUpdateStack() {
-#   declare stack=${1:? required stackName}
-#   echo "Updating stack: ${stack}. Please wait."
-#   aws cloudformation wait stack-update-complete --stack-name $stack --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
-# }
-
-# deleteStackWait() {
-#   declare stack=${1:? required stackName}
-#   aws cloudformation delete-stack --stack-name $stack --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
-#   echo "Deleting stack: ${stack}. Please take cup of tea."
-#   aws cloudformation wait stack-delete-complete --stack-name $stack --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
-# }
-
-# # # TODO function duplicate
-# # deleteStackWait() {
-# #   declare stack=${1:? required stackName}
-# #   aws cloudformation stack-exists --stack-name $stack --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
-# # }
+deleteStackWait() {
+  declare stack=${1:? required stackName}
+  aws cloudformation delete-stack --stack-name $stack --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
+  echo "Deleting stack: ${stack}. Please take cup of tea."
+  aws cloudformation wait stack-delete-complete --stack-name $stack --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
+}
 
 deployServiceRole() {
   local STACK_NAME="${EKS_SERVICE_ROLE_NAME}"
@@ -458,73 +429,6 @@ getoutput-deployNodesGroup01() {
   f_ssm_get_verbose_parameter  "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/${1}/security-group/id" none stop
 }
 
-# # authNodesGroup01() {
-# #   aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
-# # # EKS_NODE_GROUP_MAIN_INSTANCE_ROLE="MAIN_INSTANCE_ROLE-example"
-# # EKS_NODE_GROUP_MAIN_INSTANCE_ROLE=$(getStackOutput ${EKS_NAME}-nodes-${EKS_NODE_GROUP_MAIN_NAME} NodeInstanceRoleArn)
-# # f_log "INFO: \${EKS_NODE_GROUP_MAIN_INSTANCE_ROLE}: ${EKS_NODE_GROUP_MAIN_INSTANCE_ROLE}"
-# # # EKS_NODE_GROUP01_INSTANCE_ROLE="GROUP01_INSTANCE_ROLE-example"
-# # EKS_NODE_GROUP01_INSTANCE_ROLE=$(getStackOutput ${EKS_NAME}-nodes-${EKS_NODE_GROUP01_NAME} NodeInstanceRoleArn)
-# # f_log "INFO: \${EKS_NODE_GROUP01_INSTANCE_ROLE}: ${EKS_NODE_GROUP01_INSTANCE_ROLE}"
-
-# #   if [ -z ${EKS_NODE_GROUP_MAIN_INSTANCE_ROLE} ] || [ -z ${NSPACE} ] ; then
-# #     f_printf_err_exit "\${EKS_NODE_GROUP_MAIN_INSTANCE_ROLE} argument(s) is empty."
-# #   elif [ -z ${EKS_NODE_GROUP01_INSTANCE_ROLE} ]; then
-# #     f_printf_err_exit "\${EKS_NODE_GROUP01_INSTANCE_ROLE} argument(s) is empty."
-# #   elif [ -z ${AWS_ACCOUNT_ID} ]; then
-# #     f_printf_err_exit "\${AWS_ACCOUNT_ID} argument(s) is empty."
-# #   elif [ -z ${EKS_ADMIN_01} ]; then
-# #     f_printf_err_exit "\${EKS_ADMIN_01} argument(s) is empty."
-# #   elif [ -z ${EKS_ADMIN_02} ]; then
-# #     f_printf_err_exit "\${EKS_ADMIN_02} argument(s) is empty."
-# #   elif [ -z ${EKS_ADMIN_03} ]; then
-# #     f_printf_err_exit "\${EKS_ADMIN_03} argument(s) is empty."
-# #   elif [ -z ${EKS_ADMIN_04} ]; then
-# #     f_printf_err_exit "\${EKS_ADMIN_04} argument(s) is empty."
-# #   else
-# #     cat > ${WORK_DIR}/aws-auth-cm-group-01.yaml <<EOF
-# # apiVersion: v1
-# # kind: ConfigMap
-# # metadata:
-# #   name: aws-auth
-# #   namespace: kube-system
-# # data:
-# #   mapRoles: |
-# #     - rolearn: ${EKS_NODE_GROUP_MAIN_INSTANCE_ROLE}
-# #       username: system:node:{{EC2PrivateDNSName}}
-# #       groups:
-# #         - system:bootstrappers
-# #         - system:nodes
-# #     - rolearn: ${EKS_NODE_GROUP01_INSTANCE_ROLE}
-# #       username: system:node:{{EC2PrivateDNSName}}
-# #       groups:
-# #         - system:bootstrappers
-# #         - system:nodes
-# #   mapUsers: |
-# #     - userarn: arn:aws:iam::${AWS_ACCOUNT_ID}:user/${EKS_ADMIN_01}
-# #       username: ${EKS_ADMIN_01}
-# #       groups:
-# #         - system:masters
-# #     - userarn: arn:aws:iam::${AWS_ACCOUNT_ID}:user/${EKS_ADMIN_02}
-# #       username: ${EKS_ADMIN_02}
-# #       groups:
-# #         - system:masters
-# #     - userarn: arn:aws:iam::${AWS_ACCOUNT_ID}:user/${EKS_ADMIN_03}
-# #       username: ${EKS_ADMIN_03}
-# #       groups:
-# #         - system:masters
-# #     - userarn: arn:aws:iam::${AWS_ACCOUNT_ID}:user/${EKS_ADMIN_04}
-# #       username: ${EKS_ADMIN_04}
-# #       groups:
-# #         - system:masters
-# # EOF
-# #     cat ${WORK_DIR}/aws-auth-cm-group-01.yaml && \
-# #     kubectl apply -f ${WORK_DIR}/aws-auth-cm-group-01.yaml && \
-# #     printf "INFO: kubectl describe configmap -n kube-system aws-auth\n" && \
-# #     kubectl describe configmap -n kube-system aws-auth
-# #   fi
-# # }
-
 authNodesGroupAll() {
   # Arguments
   # @{1} mapRoles:
@@ -813,47 +717,6 @@ getoutput-deployEcrRepositories() {
 #   fi
 # }
 
-# # deployApp() {
-# #   # Arguments
-# #   # ${1} Application or ALB # example communications or alb2
-# #   # deleteStackWait ${ENV_NAME}-app-${1}
-# #   local STACK_NAME="${ENV_NAME}-${NSPACE}-app-${1}"
-# #   if  ! aws cloudformation describe-stacks --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE} --stack-name ${STACK_NAME} >/dev/null 2>&1 ; then
-# #     printf "INFO: Creating stack ${STACK_NAME};\n"
-# #   else
-# #     printf "INFO: Updating stack ${STACK_NAME};\n"
-# #   fi
-# #   aws cloudformation deploy \
-# #     --stack-name ${STACK_NAME} \
-# #     --template-file ./cfn/app-${1}.yaml \
-# #     --parameter-overrides \
-# #       EnvironmentName=${ENV_NAME} \
-# #       NameSpace=${NSPACE} \
-# #       AppName=${1} \
-# #     --no-fail-on-empty-changeset \
-# #     --region ${AWS_DEFAULT_REGION} \
-# #     --profile ${AWS_PROFILE}
-# #   if [[ ! "$?" == "0" ]]; then
-# #     exit 8
-# #   fi
-# #   getoutput-deployApp "${1}"
-# # }
-
-# # getoutput-deployApp() {
-# #   # Arguments
-# #   # ${1} Application or ALB # example communications or alb2
-# #   if [[ ${1} == "communications" ]] || [[ ${1} == "notification" ]]; then
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/queue_name" none stop
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/queue_url" none stop
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/queue_arn" none stop
-# #   fi
-# #   if [[ ${1} == "notification" ]]; then
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/sms_priority_sqs_name" none stop
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/sms_priority_sqs_url" none stop
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/sms_priority_sqs_arn" none stop
-# #   fi
-# # }
-
 deployNspaceCertificates() {
   # Arguments
   # ${1} EKS Name Space # example nspace10, nspace20, nspace21, nspace60
@@ -937,21 +800,6 @@ deployNspaceCertificates() {
 #   # getoutput-deployCloudFrontApp "${1}"
 # }
 
-# # getoutput-deployCloudFrontApp() {
-# #   # Arguments
-# #   # ${1} Application or ALB # example communications or alb2
-# #   if [[ ${1} == "communications" ]] || [[ ${1} == "notification" ]]; then
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/queue_name" none stop
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/queue_url" none stop
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/queue_arn" none stop
-# #   fi
-# #   if [[ ${1} == "notification" ]]; then
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/sms_priority_sqs_name" none stop
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/sms_priority_sqs_url" none stop
-# #     f_ssm_get_verbose_parameter  "${AWS_SSM_CONF_PATH}/${1}/${ENV_NAME}-${NSPACE}-docker/sms_priority_sqs_arn" none stop
-# #   fi
-# # }
-
 deploySnsTopics() {
   local STACK_NAME="${ENV_NAME}-${NSPACE}-sns-topics"
   if  ! aws cloudformation describe-stacks --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE} --stack-name ${STACK_NAME} >/dev/null 2>&1 ; then
@@ -1017,12 +865,11 @@ deployCloudWatchAlert() {
 
 eksCleanup() {
   echo "INFO: Cleanup started $(date +%Y%m%d-%H%M)"
-  if [[ "${ENV_NAME}" == "qa56" ]]; then
-    # f_ssm_get_verbose_parameter "${AWS_SSM_BASE_PATH}/nspaces/list" # DEBUG
-    # for ITEM2 in $(f_ssm_get_parameter ${AWS_SSM_BASE_PATH}/nspaces/list); do
+  if [[ "${ENV_NAME}" == "test16" ]]; then
     deleteStackWait ${ENV_NAME}-rds2
     deleteStackWait ${ENV_NAME}-security-group-rds2
-    for ITEM2 in nspace30; do
+    f_ssm_get_verbose_parameter "${AWS_SSM_BASE_PATH}/nspaces/list" none stop
+    for ITEM2 in $(f_ssm_get_parameter ${AWS_SSM_BASE_PATH}/nspaces/list); do
       export NSPACE="${ITEM2}"
       f_log "\nINFO: ==== Cleaning NameSpace ${ITEM2} in ${ENV_NAME} ====\n"
       export CLEAN_NSPACE_ALL_PODS=true && export CLEAN_NSPACE_ALL_ALBS=true
@@ -1031,13 +878,28 @@ eksCleanup() {
     deleteStackWait ${EKS_NAME}-security-group-alb3
     deleteStackWait ${EKS_NAME}-security-group-alb2
     deleteStackWait ${EKS_NAME}-security-group-alb1
-    deleteStackWait ${EKS_NAME}-nodes-${EKS_NODE_GROUP02_NAME}
-    deleteStackWait ${EKS_NAME}-nodes-policy-${EKS_NODE_GROUP02_NAME}
-    deleteStackWait ${EKS_NAME}-nodes-${EKS_NODE_GROUP01_NAME}
+    f_log "\nINFO: Deleting certificates\n"
+    for ITEM3 in $(f_ssm_get_parameter ${AWS_SSM_BASE_PATH}/nspaces/list); do
+      f_log "\nINFO: Deleting certificates for Name space ${ITEM3}"
+      deleteStackWait "${ENV_NAME}-${ITEM3}-certificates-us-east-1"
+      deleteStackWait "${ENV_NAME}-${ITEM3}-certificates-${AWS_REGION}"
+    done
+    # deleteStackWait ${ENV_TYPE}-ecr-repositories
+    # The repository with name 'app-http-content-from-git' in registry with id '355094298491' cannot be deleted because it still contains images
+    # aws ecr list-images --repository-name <repo_name> --query 'imageIds[*]' --output text | while read imageId; do aws ecr batch-delete-image --repository-name <repo_name> --image-ids imageDigest=$imageId; done
+    # aws ecr delete-repository --repository-name <repo_name> --force
+    if [[ ! -z ${EKS_NODE_GROUP02_NAME} ]]; then
+      deleteStackWait ${EKS_NAME}-nodes-${EKS_NODE_GROUP02_NAME}
+      deleteStackWait ${EKS_NAME}-nodes-policy-${EKS_NODE_GROUP02_NAME}
+    fi
+    for ITEM4 in $(f_ssm_get_parameter ${AWS_SSM_BASE_PATH}/nspaces/list); do
+      f_log "\nINFO: ==== Deleting nodes ${EKS_NAME}-nodes-${ITEM4} in ${ENV_NAME} ====\n"
+      deleteStackWait ${EKS_NAME}-nodes-${ITEM4}
+      deleteStackWait ${EKS_NAME}-nodes-policy-${ITEM4}
+    done
     f_ssm_get_verbose_parameter "${AWS_SSM_BASE_PATH}/infra/eks/nodes-group/0/name" EKS_NODE_GROUP_MAIN_NAME stop
     deleteStackWait ${EKS_NAME}-nodes-${EKS_NODE_GROUP_MAIN_NAME}
     deleteStackWait ${EKS_NAME}-nodes-policy-${EKS_NODE_GROUP_MAIN_NAME}
-    deleteStackWait ${EKS_NAME}-nodes-policy-${EKS_NODE_GROUP01_NAME}
     echo "Deleting EKS cluster: ${EKS_NAME}. Please take your lunch."
     deleteStackWait ${EKS_NAME}-cluster
     
@@ -1047,77 +909,16 @@ eksCleanup() {
     deleteStackWait ${EKS_NAME}-security-groups
     deleteStackWait ${ENV_NAME}-vpc
     deleteStackWait ${EKS_SERVICE_ROLE_NAME}
+    echo "WARNING: Please delete AWS ECR images either manually and delete ${ENV_TYPE}-ecr-repositories stack after."
+  else
+    echo "INFO: \${ENV_NAME} is not test16"
   fi
   echo "INFO: Cleanup finished $(date +%Y%m%d-%H%M)"
 }
 
 eksCreateCluster() {
 
-echo "INFO: Deploying stack name: ${ENV_NAME} ..."
-echo "$(date +%Y%m%d-%H%M)"
-
-  deployServiceRole
-
-  deployVPC3x3x3x3
-
-  deploySecurityGroups
-
-  deployCluster
-
-  aws eks update-kubeconfig --name ${EKS_NAME} --region ${AWS_DEFAULT_REGION} --profile ${AWS_PROFILE}
-  kubectl config use-context ${EKS_ARN}
-
-  f_ssm_get_verbose_parameter "${AWS_SSM_BASE_PATH}/infra/instance_key_pair1/name" AWS_KEY_PAIR_NAME stop
-  f_awsKeyPair "${AWS_KEY_PAIR_NAME}" "${COMPANY_NAME_SHORT}/"
-
-  deployPolicies
-  deployNodesGroupPolicy ${EKS_NODE_GROUP_MAIN_NAME}
-
-  deployNodesGroupMain
-  authNodesGroupAll
-
-  . ./helm-cli-install.sh
-
-  deployNodesGroupPolicy ${EKS_NODE_GROUP01_NAME}
-
-  sleep 20
-  kubectl get nodes --show-labels
-  sleep 5
-  kubectl get nodes
-
-  f_create_k8s_namespace ${NSPACE}
-
-  deployNodesGroup01 ${NSPACE}
-  authNodesGroupAll 
-
-  # createNodesGroup02
-  # authNodesGroupAll
-
-  deployRdsSecurityGroup rds2
-
-  deployAlbSecurityGroup alb3
-  deployAlbSecurityGroup alb2
-  deployAlbSecurityGroup alb1
-
-  . ./app-docker-repositories.sh && createEcrRepositories
-
-  . ./helm-aws-node-termination-handler.sh
-  . ./cluster-autoscaler.sh
-  . ./hpa-deploy.sh
-  
-  sleep 20
-  kubectl get nodes
-  sleep 20
-  kubectl get nodes --show-labels
-
-  . ./alb-ingress-controller.sh
-
-  . ./bin/deploy-k8s.sh test ${NSPACE} 58190 58190 1
-
-
-  # bash -c "export ENV_NAME="${ENV_NAME}" && export CI_CD_DEPLOY=true && ./bin/deploy-k8s.sh alb2-mgmt ${NSPACE} 12345 12345 1"
-
-  echo "$(date +%Y%m%d-%H%M)"
+  ./bin/deploy-env-full.sh
 
 }
 
