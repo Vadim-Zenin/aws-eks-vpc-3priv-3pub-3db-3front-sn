@@ -6,13 +6,28 @@ Load Balancer is in public subnets.
 
 EKS nodes are in private subnets.
 
-## Environment name
-
-test16
+Either clients or qa environments are separated by EKS Name Spaces and use dedicated
+- EKS nodes group
+- AWS IAM police forthe EKS Group
+- AWS Security Groups
+- AWS Load balancers
 
 ## Diagram
 
-![Infrastructure diagram](images/aws-eks-vpc-3priv-3pub-3db-3front-sn-diagram.png)
+![Infrastructure diagram](images/aws-eks-vpc-3priv-3pub-3db-3front-sn_diagram.png)
+
+## Naming convention
+### Environment name naming convention
+
+<Environment_type><VPC_Subnets_SIDR_second_octet>
+
+Example: test16
+
+### EKS name spaces
+
+nspace<digital(2 symbols)>, digital must be unique per EKS. The number is used for AWS `alb.ingress.kubernetes.io/group.order`
+
+Examples: nspace10, nspace20, nspace21, nspace60, nspace61
 
 ## VPC Subnets:
 ```bash
