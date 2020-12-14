@@ -16,6 +16,13 @@ Either clients or qa environments are separated by EKS Name Spaces and use dedic
 
 ![Infrastructure diagram](images/aws-eks-vpc-3priv-3pub-3db-3front-sn_diagram.png)
 
+## Auto-scaling
+
+- Scalable
+- Highly Available
+
+![Infrastructure Autoscaling diagram](images/aws-eks-vpc-3priv-3pub-3db-3front-sn_Autoscaling_diagram.png)
+
 ## Naming convention
 ### Environment name naming convention
 
