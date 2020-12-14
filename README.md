@@ -157,14 +157,34 @@ If I have to update small part of AWS Security Group I should not touch all VPC 
 
 ![AWS Cloudformation Stacks](images/20201213-201224-AWS-CloudFormation-stacks.png)
 
-## Cleanup
+## Folders structure
+
+```bash
+.
+├── bin # binaries
+├── cfn # CloudFormation templates
+├── config
+│   └── pipeline # CI/CD (Jenkins) files
+├── configurations # files for AWS Parameter Store
+├── dev-utils # utilities
+├── download # folder to keep 3rd party installation files
+│   ├── alb-ingress-controller
+│   ├── clusterAutoscaler
+│   ├── cwagent-fluentd
+│   └── metrics-server-0.4.1
+├── images
+├── k8s_templates # EKS (Kubernetes) templates
+├── templates # General templates
+```
+
+## Clean-up
 
 To delete every resources (VPC, Workers, EKS cluster)
 ```bash
 . ~/venv-aws-cli/bin/activate
-export COMPANY_NAME_SHORT="abc" && export ENV_TYPE="test" && export IP_2ND_OCTET="16" && export NSPACE="nspace60" && export APP_NAME="app-http-content-from-git" && bash -c ". ./bin/lib_cfn.sh && eksCleanup"
+export COMPANY_NAME_SHORT="abc" && export ENV_TYPE="test" && export IP_2ND_OCTET="16" && export NSPACE="nspace60" && export APP_NAME="app-http-content-from-git" && bash -c ". ./bin/lib_cfn.sh && envCleanup"
 ```
 
-I would take ~ 20 minutes to clean up.
+It could take 20+ minutes to clean up.
 
-Note: AWS keyPair will be kept.
+Note: AWS keyPair and AWS ECR will be kept.

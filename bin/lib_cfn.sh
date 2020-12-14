@@ -6,7 +6,7 @@
 # export COMPANY_NAME_SHORT="abc" && export ENV_TYPE="test" && export IP_2ND_OCTET="16" && export NSPACE="nspace60" && export APP_NAME="app-http-content-from-git" && export CI_CD_DEPLOY=false && bash -c "./bin/deploy-env-full.sh"
 #
 # CleanUp
-# export COMPANY_NAME_SHORT="abc" && export ENV_TYPE="test" && export IP_2ND_OCTET="16" && export NSPACE="nspace60" && export APP_NAME="app-http-content-from-git" && bash -c ". ./bin/lib_cfn.sh && eksCleanup"
+# export COMPANY_NAME_SHORT="abc" && export ENV_TYPE="test" && export IP_2ND_OCTET="16" && export NSPACE="nspace60" && export APP_NAME="app-http-content-from-git" && bash -c ". ./bin/lib_cfn.sh && envCleanup"
 
 ################################################################################
 # Functions
@@ -863,7 +863,7 @@ deployCloudWatchAlert() {
   # getoutput-deployCloudWatchAlert ${1}
 }
 
-eksCleanup() {
+envCleanup() {
   echo "INFO: Cleanup started $(date +%Y%m%d-%H%M)"
   if [[ "${ENV_NAME}" == "test16" ]]; then
     deleteStackWait ${ENV_NAME}-rds2
